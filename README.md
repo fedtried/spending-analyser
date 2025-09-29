@@ -1,12 +1,20 @@
 # AI Spending Analyser
 
 ## 🎯 Problem Statement
-[User problem, why it matters, target audience]
+
+After researching Trading 212's user base, I've identified that the target users are millennials and Gen Z adults (25-40) who are financially curious but not necessarily financially literate. They're using apps like Monzo and Revolut for banking, they've maybe dabbled in investing through Trading 212, but they still feel anxious about their spending habits. They know they should budget, but traditional budgeting tools feel like homework - too rigid, judgmental, and disconnected from their actual lifestyle. What they really need isn't another app telling them they spend too much on coffee; they need a financial companion that understands their spending is emotional, contextual, and personal.
+
+This app bridges that gap by making spending analysis feel less like a chore and more like having a conversation with a knowledgeable friend who happens to be great with money. One that doesn't just categorise your spending (excel can do that) but it understands that your Friday Pret habit might be your mental health routine, that your weekend Uber rides are how you maintain friendships, and that cutting all "unnecessary" spending isn't realistic or healthy. 
+
+The ultimate value proposition is simple: this app helps users move from financial anxiety to financial awareness without the traditional guilt trip. It's the difference between "You spent £200 on entertainment" and "Your entertainment spending brings you joy and keeps you social - here's how to maintain it while still saving £50/month." This aligns perfectly with Trading 212's mission of democratising finance - to not just making investing accessible, but making financial self-awareness accessible too. This isn't about building another budget tracker - it's about building a spending analyser that actually understands that behind every transaction is a human trying to live their life.
 
 ## 🚀 Live Demo
 [Link with demo credentials]
 
 ## 💡 Key Features & Design Decisions
+
+A couple of [Reddit](https://www.reddit.com/r/trading212/comments/1l8m6gy/listen_to_your_users/) posts have indicated that the current user base highly values simple and intuitive experiences. Therefore, it's imperative that anyone with a Trading 212 account should be able to go from demo data -> value with minimal clicks. 
+
 [Explain each feature and WHY you built it]
 
 ## 🏗️ Technical Architecture

@@ -20,6 +20,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# Newly added utilities
+from utils.config import load_config
+from utils.logging import get_logger
+from utils.data_loader import load_demo_dataframe, analyze_demo_dataframe
+
 # Constants
 APP_NAME: str = "AI Spending Analyser"
 TAGLINE: str = "Understand your financial habits with visual analytics and AI insights"
@@ -44,6 +49,7 @@ def init_session_state() -> None:
         "view_option": "Overview",
         "currency": DEFAULT_CURRENCY,
         "df": None,  # placeholder for DataFrame when added later
+        "analysis": None,  # AnalysisResult placeholder
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -108,38 +114,56 @@ def render_sidebar() -> None:
             )
 
 
-def render_metrics_row() -> None:
-    """Render a responsive row of financial metric cards with placeholder values."""
+def render_metrics_row(total_spent: float | None = None, num_tx: int | None = None, num_cats: int | None = None) -> None:
+    """Render a responsive row of financial metric cards with optional values."""
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="Total Spent", value=f"{DEFAULT_CURRENCY}0")
+        if total_spent is None:
+            st.metric(label="Total Spent", value=f"{DEFAULT_CURRENCY}0")
+        else:
+            st.metric(label="Total Spent", value=f"{DEFAULT_CURRENCY}{total_spent:,.2f}")
     with col2:
-        st.metric(label="Transactions", value="0")
+        st.metric(label="Transactions", value=str(num_tx or 0))
     with col3:
-        st.metric(label="Categories", value="0")
+        st.metric(label="Categories", value=str(num_cats or 0))
 
 
 def render_summary_section() -> None:
-    """Render the summary statistics placeholder section."""
+    """Render the summary statistics section, using demo data if available."""
     with st.container(border=True):
         st.markdown("### Summary Statistics 📊")
-        st.write(
-            "Upload your data or load demo data to see personalized summaries, trends, and spending breakdowns."
-        )
-        render_metrics_row()
+
+        analysis = st.session_state.get("analysis")
+        if analysis is None:
+            st.write(
+                "Upload your data or load demo data to see personalized summaries, trends, and spending breakdowns."
+            )
+            render_metrics_row()
+        else:
+            render_metrics_row(
+                total_spent=analysis.total_spent,
+                num_tx=analysis.num_transactions,
+                num_cats=len(analysis.totals_by_category),
+            )
 
 
 def render_visualizations_section() -> None:
-    """Render the visualizations placeholder section with an empty state chart."""
+    """Render the visualizations placeholder section with a minimal chart."""
     with st.container(border=True):
         st.markdown("### Visualizations 🎯")
-        # Placeholder empty chart using a minimal DataFrame
         try:
-            df_placeholder = pd.DataFrame({"Day": [], "Amount": []})
-            fig = px.line(df_placeholder, x="Day", y="Amount", title="Spending Over Time (placeholder)")
+            df = st.session_state.get("df")
+            if df is None or df.empty:
+                df_placeholder = pd.DataFrame({"Day": [], "Amount": []})
+                fig = px.line(df_placeholder, x="Day", y="Amount", title="Spending Over Time (placeholder)")
+            else:
+                df_plot = df.copy()
+                df_plot["Day"] = df_plot["timestamp"].dt.date
+                df_plot = df_plot.groupby("Day")["amount"].sum().reset_index(name="Amount")
+                fig = px.line(df_plot, x="Day", y="Amount", title="Spending Over Time (demo)")
             fig.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=20))
             st.plotly_chart(fig, use_container_width=True)
-        except Exception as exc:  # graceful handling for any rendering issues
+        except Exception as exc:
             st.info("Visualization will appear here once data is available.")
             st.caption(f"Renderer note: {exc}")
 
@@ -168,13 +192,28 @@ def render_empty_state() -> None:
     st.info("Upload your data or load demo data to begin")
 
 
+def maybe_load_demo_data() -> None:
+    """Populate session with demo data and analysis if Demo Data is selected."""
+    if st.session_state.get("data_source") == "Demo Data":
+        df = load_demo_dataframe()
+        st.session_state["df"] = df
+        st.session_state["analysis"] = analyze_demo_dataframe(df)
+
+
 def main() -> None:
     """Application entry point."""
     set_page_config()
+
+    # Init
+    config = load_config()
+    logger = get_logger()
     init_session_state()
 
     render_header()
     render_sidebar()
+
+    # Data layer
+    maybe_load_demo_data()
 
     # Main content layout
     welcome = st.container()
