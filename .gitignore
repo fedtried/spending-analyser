@@ -1,0 +1,62 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VSCode / IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/*.yaml
+
+# Environment and secrets
+.env
+.env.*
+*.env
+secrets.*
+
+# Data caches
+.cache/
+**/.ipynb_checkpoints/
+
+# Python tooling
+.mypy_cache/
+.pyre/
+.pytype/
+.coverage
+htmlcov/
+
+# Node (if added later)
+node_modules/
+
+# Local data (optional, keep sample data small)
+data/*.csv
+!data/.gitkeep
+
+# OS trash
+.Trash-*
