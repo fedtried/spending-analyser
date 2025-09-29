@@ -1,0 +1,17 @@
+# Streamlit theme configuration for AI Spending Analyser
+# Dark theme inspired by professional trading dashboards
+
+[theme]
+base = "dark"
+primaryColor = "#00D46A"
+backgroundColor = "#0A0E27"
+secondaryBackgroundColor = "#11163A"
+textColor = "#FFFFFF"
+font = "sans serif"
+
+# General UI tweaks
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
