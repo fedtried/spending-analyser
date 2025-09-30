@@ -146,6 +146,8 @@ def analyze_dataframe(df: pd.DataFrame) -> AnalysisResult:
             totals[t.category or "Uncategorized"] = totals.get(t.category or "Uncategorized", 0.0) + t.amount
 
     total_spent = sum(a for a in (t.amount for t in transactions) if a > 0)
+    total_income = abs(sum(a for a in (t.amount for t in transactions) if a < 0))
+    total_net = total_income - total_spent
 
     insights = [
         Insight(
@@ -161,6 +163,8 @@ def analyze_dataframe(df: pd.DataFrame) -> AnalysisResult:
         insights=insights,
         totals_by_category=totals,
         total_spent=total_spent,
+        total_income=total_income,
+        total_net=total_net,
         num_transactions=len(transactions),
     )
 

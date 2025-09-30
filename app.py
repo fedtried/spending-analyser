@@ -179,7 +179,7 @@ def render_sidebar() -> None:
 
 
 
-def render_metrics_row(total_spent: float | None = None, num_tx: int | None = None, num_cats: int | None = None) -> None:
+def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
     """Render a responsive row of financial metric cards with optional values."""
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -188,9 +188,15 @@ def render_metrics_row(total_spent: float | None = None, num_tx: int | None = No
         else:
             st.metric(label="Total Spent", value=f"{DEFAULT_CURRENCY}{total_spent:,.2f}")
     with col2:
-        st.metric(label="Transactions", value=str(num_tx or 0))
+        if total_income is None:
+            st.metric(label="Total Income", value=f"{DEFAULT_CURRENCY}0")
+        else:
+            st.metric(label="Total Income", value=f"{DEFAULT_CURRENCY}{total_income:,.2f}")
     with col3:
-        st.metric(label="Categories", value=str(num_cats or 0))
+        if total_net is None:
+            st.metric(label="Total Net", value=f"{DEFAULT_CURRENCY}0")
+        else:
+            st.metric(label="Total Net", value=f"{DEFAULT_CURRENCY}{total_net:,.2f}")
 
 
 def render_summary_section() -> None:
@@ -212,8 +218,8 @@ def render_summary_section() -> None:
         else:
             render_metrics_row(
                 total_spent=analysis.total_spent,
-                num_tx=analysis.num_transactions,
-                num_cats=len(analysis.totals_by_category),
+                total_income=analysis.total_income,
+                total_net=analysis.total_net,
             )
 
 
@@ -320,16 +326,7 @@ def render_visualizations_section() -> None:
 
             # Category Spend Breakdown with controls
             st.markdown("#### Category Spend Breakdown")
-            left, right = st.columns([1, 3])
-            with left:
-                chart_type = st.radio(
-                    "Chart type",
-                    options=["Pie", "Bar"],
-                    index=0,
-                    horizontal=True,
-                    key="category_chart_type",
-                )
-
+            
             spend_df = df[df["amount"] > 0].copy()
             if not spend_df.empty:
                 spend_df["Spend"] = spend_df["amount"]
@@ -338,13 +335,43 @@ def render_visualizations_section() -> None:
                 )
                 cat_df = cat_totals.reset_index()
                 cat_df.columns = ["Category", "Spend"]
-                with right:
-                    if chart_type == "Pie":
-                        cat_fig = px.pie(cat_df, names="Category", values="Spend", title="Share of Spending by Category", hole=0.4)
-                        cat_fig.update_traces(textposition="inside", textinfo="percent+label")
-                    else:
-                        cat_fig = px.bar(cat_df.sort_values("Spend", ascending=True), x="Spend", y="Category", orientation="h", title="Categories by Spending")
-                        cat_fig.update_layout(yaxis_title="", xaxis_title="Amount")
+                
+                # Layout with metrics on left and chart on right
+                left_col, right_col = st.columns([1, 2])
+                
+                with left_col:
+                    st.markdown("**Category Statistics**")
+                    
+                    # Total Categories metric
+                    st.metric(
+                        label="Total Categories", 
+                        value=len(cat_df),
+                        help="Number of different spending categories"
+                    )
+                    
+                    # Top Category metric
+                    if len(cat_df) > 0:
+                        top_category = cat_df.iloc[0]
+                        st.metric(
+                            label="Top Category", 
+                            value=top_category["Category"],
+                            delta=f"{DEFAULT_CURRENCY}{top_category['Spend']:,.0f}",
+                            help="Category with highest spending"
+                        )
+                        
+                        # Top Category percentage
+                        top_spend = cat_df.iloc[0]["Spend"]
+                        total_spend = cat_df["Spend"].sum()
+                        top_percentage = (top_spend / total_spend) * 100
+                        st.metric(
+                            label="Top Category %", 
+                            value=f"{top_percentage:.1f}%",
+                            help="Percentage of total spending in top category"
+                        )
+                
+                with right_col:
+                    cat_fig = px.pie(cat_df, names="Category", values="Spend", title="Share of Spending by Category", hole=0.4)
+                    cat_fig.update_traces(textposition="inside", textinfo="percent+label")
                     cat_fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
                     st.plotly_chart(cat_fig, use_container_width=True)
             else:
