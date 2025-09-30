@@ -10,7 +10,7 @@ import streamlit as st
 class AppConfig:
     currency: str = "£"
     locale: str = "en_GB"
-    openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
 
 def load_config() -> AppConfig:
@@ -37,6 +37,6 @@ def load_config() -> AppConfig:
 
     currency = app_section.get("currency", "£")
     locale = app_section.get("locale", "en_GB")
-    openai_api_key = api_section.get("openai_api_key")
+    gemini_api_key = api_section.get("gemini_api_key")
 
-    return AppConfig(currency=currency, locale=locale, openai_api_key=openai_api_key)
+    return AppConfig(currency=currency, locale=locale, gemini_api_key=gemini_api_key)
