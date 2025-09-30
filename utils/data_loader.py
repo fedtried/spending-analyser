@@ -141,9 +141,11 @@ def analyze_dataframe(df: pd.DataFrame) -> AnalysisResult:
 
     totals: dict[str, float] = {}
     for t in transactions:
-        totals[t.category or "Uncategorized"] = totals.get(t.category or "Uncategorized", 0.0) + t.amount
+        # Only include spending transactions (positive amounts) in category totals
+        if t.amount > 0:
+            totals[t.category or "Uncategorized"] = totals.get(t.category or "Uncategorized", 0.0) + t.amount
 
-    total_spent = sum(a for a in (t.amount for t in transactions) if a < 0)
+    total_spent = sum(a for a in (t.amount for t in transactions) if a > 0)
 
     insights = [
         Insight(
@@ -158,7 +160,7 @@ def analyze_dataframe(df: pd.DataFrame) -> AnalysisResult:
         transactions=transactions,
         insights=insights,
         totals_by_category=totals,
-        total_spent=abs(total_spent),
+        total_spent=total_spent,
         num_transactions=len(transactions),
     )
 
