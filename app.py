@@ -50,12 +50,13 @@ def set_page_config() -> None:
 
 def init_session_state() -> None:
     """Initialize Streamlit session state variables used across the app."""
+    from datetime import date
     defaults = {
         "data_source": "Demo Data",  # or "Upload PDF"
         "analysis_period": "Custom Date Range",
         "date_range_type": "Custom Date Range",  # "Last 7 days", "Last 30 days", etc. or "Custom Date Range"
-        "start_date": None,
-        "end_date": None,
+        "start_date": date(2025, 7, 1),  # Default to demo data range start
+        "end_date": date(2025, 9, 30),   # Default to demo data range end
         "currency": DEFAULT_CURRENCY,
         "df": None,  # placeholder for DataFrame when added later
         "analysis": None,  # AnalysisResult placeholder
@@ -140,6 +141,15 @@ def render_sidebar() -> None:
             # Validate date range
             if start_date and end_date and start_date > end_date:
                 st.error("Start date must be before end date")
+            else:
+                # Check if dates have changed and trigger rerun
+                old_start = st.session_state.get("start_date")
+                old_end = st.session_state.get("end_date")
+                if (old_start != start_date or old_end != end_date):
+                    st.session_state["start_date"] = start_date
+                    st.session_state["end_date"] = end_date
+                    # Trigger rerun to reload data with new filter
+                    st.rerun()
         else:
             # Calculate date range for preset options
             if date_range_type == "Last 7 days":
@@ -159,10 +169,12 @@ def render_sidebar() -> None:
         
         # Store the calculated dates in session state (only if not custom range to avoid conflicts)
         if date_range_type != "Custom Date Range":
-            if "start_date" not in st.session_state or st.session_state.get("date_range_type") != date_range_type:
+            if (st.session_state.get("start_date") != start_date or 
+                st.session_state.get("end_date") != end_date):
                 st.session_state["start_date"] = start_date
                 st.session_state["end_date"] = end_date
-                st.session_state["date_range_type"] = date_range_type
+                # Trigger rerun to reload data with new filter
+                st.rerun()
 
 
 
