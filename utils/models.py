@@ -28,4 +28,6 @@ class AnalysisResult(BaseModel):
     insights: List[Insight] = []
     totals_by_category: dict[str, float] = {}
     total_spent: float = 0.0
+    total_income: float = 0.0
+    total_net: float = 0.0
     num_transactions: int = 0

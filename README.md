@@ -9,7 +9,8 @@ This app bridges that gap by making spending analysis feel less like a chore and
 The ultimate value proposition is simple: this app helps users move from financial anxiety to financial awareness without the traditional guilt trip. It's the difference between "You spent £200 on entertainment" and "Your entertainment spending brings you joy and keeps you social - here's how to maintain it while still saving £50/month." This aligns perfectly with Trading 212's mission of democratising finance - to not just making investing accessible, but making financial self-awareness accessible too. This isn't about building another budget tracker - it's about building a spending analyser that actually understands that behind every transaction is a human trying to live their life.
 
 ## 🚀 Live Demo
-[Link with demo credentials]
+
+https://spending-analyser.streamlit.app/
 
 ## 💡 Key Features & Design Decisions
 
@@ -91,3 +92,9 @@ spending-analyser/
 
 ## 📝 Development Journal
 [Link to commits showing iterative process]
+
+Using Cursor to get setup with boilerplate
+
+Using Claude Code to plan tasks and architectures 
+
+Using Perplexity to research user base and trends to understand users 
