@@ -14,6 +14,7 @@ Run locally:
 from __future__ import annotations
 
 import os
+import io
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -71,6 +72,7 @@ def init_session_state() -> None:
         "currency": DEFAULT_CURRENCY,
         "df": None,  # placeholder for DataFrame when added later
         "analysis": None,  # AnalysisResult placeholder
+        "ai_pdf_summary": None,  # Stores one-sentence summary 
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -396,7 +398,11 @@ def render_ai_insights_section() -> None:
     """Render the AI insights placeholder section."""
     with st.container(border=True):
         st.markdown("### AI Insights 🤖")
-        st.info("AI insights will be added in a future update.")
+        summary = st.session_state.get("ai_pdf_summary")
+        if summary:
+            st.write(summary)
+        else:
+            st.info("Upload a PDF to get AI insights.")
 
 
 def render_footer() -> None:
@@ -454,8 +460,112 @@ def maybe_load_demo_data() -> None:
         file_obj = st.session_state.get("uploaded_file")
         if file_obj is not None:
             try:
-                df = load_user_dataframe(file_obj)
-                
+                gemini_csv_df: Optional[pd.DataFrame] = None
+                try:
+                    cfg = load_config()
+                    if not cfg.gemini_api_key:
+                        raise RuntimeError("Missing api.gemini_api_key in .streamlit/secrets.toml")
+
+                    instruction = (
+                        "Extract this bank statement as CSV with EXACTLY this header: "
+                        "Transaction_Date,Posting_Date,Description,Transaction_Type,Merchant_Category,Amount,Location,Balance_After\n"
+                        "Rules: Use YYYY-MM-DD dates. Positive amounts for spending, negative for income. "
+                        "For Merchant_Category, choose from: Groceries, Transport, Dining, Retail, Utilities, Entertainment, Health, Cash, Savings, Transfer, Income, Uncategorized. "
+                        "Be specific with categories (e.g., 'Tesco' → 'Groceries', 'Uber' → 'Transport'). "
+                        "Output ONLY the CSV data, no explanations or code blocks."
+                    )
+
+                    csv_text: Optional[str] = None
+
+                    # Modern client flow
+                    if genai_client is not None:
+                        import tempfile
+                        client = genai_client.Client(api_key=cfg.gemini_api_key)
+                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
+                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
+                            tmp.write(file_obj.getbuffer())
+                            tmp.flush()
+                            myfile = client.files.upload(file=tmp.name)
+                        result = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[myfile, "\n\n", instruction],
+                        )
+                        csv_text = getattr(result, "text", None) or None
+
+                    # Legacy client flow
+                    elif genai_legacy is not None:
+                        import tempfile
+                        genai_legacy.configure(api_key=cfg.gemini_api_key)
+                        model = genai_legacy.GenerativeModel("gemini-2.5-flash")
+                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
+                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
+                            tmp.write(file_obj.getbuffer())
+                            tmp.flush()
+                            try:
+                                uploaded_file = genai_legacy.upload_file(path=tmp.name, mime_type=mime_type)
+                            except TypeError:
+                                uploaded_file = genai_legacy.upload_file(file=tmp.name, mime_type=mime_type)
+                        result = model.generate_content([uploaded_file, "\n\n", instruction])
+                        csv_text = getattr(result, "text", None)
+                        if not csv_text and hasattr(result, "candidates"):
+                            try:
+                                csv_text = result.candidates[0].content.parts[0].text  # type: ignore[attr-defined]
+                            except Exception:
+                                csv_text = None
+                    else:
+                        raise RuntimeError("Gemini SDK not available. Did you install google-generativeai?")
+
+                    if csv_text:
+                        # Clean up any markdown formatting
+                        cleaned = csv_text.strip()
+                        if cleaned.startswith("```"):
+                            lines = cleaned.split('\n')
+                            # Find the first line that looks like a CSV header
+                            for i, line in enumerate(lines):
+                                if "Transaction_Date" in line:
+                                    cleaned = '\n'.join(lines[i:])
+                                    break
+                            cleaned = cleaned.strip("`\n ")
+                        
+                        # Parse CSV
+                        gemini_csv_df = pd.read_csv(io.StringIO(cleaned))
+                        
+                        # Validate required columns
+                        required_cols = {
+                            "Transaction_Date","Posting_Date","Description","Transaction_Type",
+                            "Merchant_Category","Amount","Location","Balance_After"
+                        }
+                        if not required_cols.issubset(set(gemini_csv_df.columns)):
+                            raise ValueError(f"CSV missing required columns. Got: {list(gemini_csv_df.columns)}")
+                except Exception as gem_csv_err:
+                    st.caption(f"Gemini CSV note: {gem_csv_err}")
+
+                # Prefer Gemini CSV if available; else fallback to local parser
+                if gemini_csv_df is not None and not gemini_csv_df.empty:
+                    # Use Gemini's structured output directly
+                    df = gemini_csv_df.rename(columns={
+                        "Transaction_Date": "timestamp",
+                        "Amount": "amount", 
+                        "Merchant_Category": "category",
+                        "Balance_After": "balance_after",
+                        "Description": "description",
+                    })
+                    
+                    # Convert timestamp and ensure numeric types
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+                    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+                    df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
+                    
+                    # Add required columns
+                    df["currency"] = DEFAULT_CURRENCY
+                    df["merchant"] = df["description"].astype(str)
+                    df["category"] = df["category"].astype(str)
+                    
+                    # Clean up and validate
+                    df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
+                else:
+                    df = load_user_dataframe(file_obj)
+
                 # Apply date range filter
                 start_date, end_date = get_current_date_range()
                 if start_date and end_date:
@@ -464,7 +574,7 @@ def maybe_load_demo_data() -> None:
                 st.session_state["df"] = df
                 st.session_state["analysis"] = analyze_dataframe(df)
 
-                # Gemini integration: upload PDF and get 1-sentence summary
+                # Gemini integration: upload PDF and get personalized summary
                 try:
                     cfg = load_config()
                     if not cfg.gemini_api_key:
@@ -488,7 +598,7 @@ def maybe_load_demo_data() -> None:
                             contents=[
                                 myfile,
                                 "\n\n",
-                                "Summarize this PDF in one concise sentence suitable for a status update.",
+                                "Write a personalized, summary of this bank statement. Focus on what the spending brings to the person's life, and offer suggestions for maintaining balance. Be encouraging and understanding, like a supportive friend who happens to be great with money. Keep it to 2-3 sentences.",
                             ],
                         )
                         summary_text = getattr(result, "text", None) or ""
@@ -513,7 +623,7 @@ def maybe_load_demo_data() -> None:
                         result = model.generate_content([
                             uploaded_file,
                             "\n\n",
-                            "Summarize this PDF in one concise sentence suitable for a status update.",
+                            "Write a personalized, summary of this bank statement. Focus on what the spending brings to the person's life, and offer suggestions for maintaining balance. Be encouraging and understanding, like a supportive friend who happens to be great with money. Keep it to 2-3 sentences.",
                         ])
 
                         # Try to extract text depending on SDK version
@@ -527,9 +637,9 @@ def maybe_load_demo_data() -> None:
                         raise RuntimeError("Gemini SDK not available. Did you install google-generativeai?")
 
                     if summary_text:
-                        st.success(summary_text.strip())
+                        st.session_state["ai_pdf_summary"] = summary_text.strip()
                     else:
-                        st.success("HELLO THIS WORKED!")
+                        st.session_state["ai_pdf_summary"] = ""
                 except Exception as gem_err:
                     st.error(f"Gemini call failed: {gem_err}")
             except Exception as exc:
