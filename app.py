@@ -37,6 +37,17 @@ APP_NAME: str = "Spending Analyst"
 TAGLINE: str = "Your financial companion that gets it - no judgment, just insights that actually help"
 DEFAULT_CURRENCY: str = "£"
 
+# Optional Gemini imports (SDK may expose either interface depending on version)
+try:  # Preferred modern client
+    from google import genai as genai_client  # type: ignore
+except Exception:  # Fallback to legacy namespace
+    genai_client = None  # type: ignore
+
+try:
+    import google.generativeai as genai_legacy  # type: ignore
+except Exception:  # pragma: no cover
+    genai_legacy = None  # type: ignore
+
 
 def set_page_config() -> None:
     """Configure Streamlit page settings early to avoid layout shifts."""
@@ -452,7 +463,75 @@ def maybe_load_demo_data() -> None:
                 
                 st.session_state["df"] = df
                 st.session_state["analysis"] = analyze_dataframe(df)
-                st.success("PDF processed successfully.")
+
+                # Gemini integration: upload PDF and get 1-sentence summary
+                try:
+                    cfg = load_config()
+                    if not cfg.gemini_api_key:
+                        raise RuntimeError("Missing api.gemini_api_key in .streamlit/secrets.toml")
+
+                    summary_text = None
+
+                    # Preferred modern client flow: google.genai Client + Files API
+                    if genai_client is not None:
+                        import tempfile
+                        client = genai_client.Client(api_key=cfg.gemini_api_key)
+
+                        # Persist uploaded file to disk for upload API
+                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
+                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
+                            tmp.write(file_obj.getbuffer())
+                            tmp.flush()
+                            myfile = client.files.upload(file=tmp.name)  
+                        result = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[
+                                myfile,
+                                "\n\n",
+                                "Summarize this PDF in one concise sentence suitable for a status update.",
+                            ],
+                        )
+                        summary_text = getattr(result, "text", None) or ""
+
+                    # Legacy fallback: google.generativeai with file upload
+                    elif genai_legacy is not None:
+                        import tempfile
+                        genai_legacy.configure(api_key=cfg.gemini_api_key)
+                        model = genai_legacy.GenerativeModel("gemini-2.5-flash")
+
+                        # Persist uploaded file then upload via legacy Files helper
+                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
+                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
+                            tmp.write(file_obj.getbuffer())
+                            tmp.flush()
+                            try:
+                                uploaded_file = genai_legacy.upload_file(path=tmp.name, mime_type=mime_type)
+                            except TypeError:
+                                # Some versions expect 'file' kwarg
+                                uploaded_file = genai_legacy.upload_file(file=tmp.name, mime_type=mime_type)
+
+                        result = model.generate_content([
+                            uploaded_file,
+                            "\n\n",
+                            "Summarize this PDF in one concise sentence suitable for a status update.",
+                        ])
+
+                        # Try to extract text depending on SDK version
+                        summary_text = getattr(result, "text", None)
+                        if not summary_text and hasattr(result, "candidates"):
+                            try:
+                                summary_text = result.candidates[0].content.parts[0].text  # type: ignore[attr-defined]
+                            except Exception:
+                                summary_text = None
+                    else:
+                        raise RuntimeError("Gemini SDK not available. Did you install google-generativeai?")
+
+                    if summary_text:
+                        st.success(summary_text.strip())
+                    else:
+                        st.success("HELLO THIS WORKED!")
+                except Exception as gem_err:
+                    st.error(f"Gemini call failed: {gem_err}")
             except Exception as exc:
                 st.session_state["df"] = None
                 st.session_state["analysis"] = None
