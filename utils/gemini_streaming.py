@@ -295,11 +295,11 @@ Rules:
         for chunk in result:
             if hasattr(chunk, 'text') and chunk.text:
                 buffer += chunk.text
-                # Yield in chunks of reasonable size for smooth streaming
-                if len(buffer) > 50:  # Yield every 50 characters
+                # Yield smaller chunks for smoother streaming
+                if len(buffer) > 20:
                     yield buffer
                     buffer = ""
-                time.sleep(0.05)  # Reduced delay for faster streaming
+                time.sleep(0.02)
         
         # Yield any remaining buffer
         if buffer:
@@ -323,11 +323,11 @@ Rules:
         for chunk in result:
             if hasattr(chunk, 'text') and chunk.text:
                 buffer += chunk.text
-                # Yield in chunks of reasonable size for smooth streaming
-                if len(buffer) > 50:  # Yield every 50 characters
+                # Yield smaller chunks for smoother streaming
+                if len(buffer) > 20:
                     yield buffer
                     buffer = ""
-                time.sleep(0.05)  # Reduced delay for faster streaming
+                time.sleep(0.02)
         
         # Yield any remaining buffer
         if buffer:
