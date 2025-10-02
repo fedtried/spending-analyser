@@ -4,7 +4,6 @@ Provides a real-time streaming chat experience for PDF analysis with:
 - Chat-like UI using st.container() and st.chat_message()
 - Message types: user, assistant, system
 - Auto-scroll to latest message
-- Typing indicator while processing
 - Persist chat history in session state
 """
 
@@ -96,9 +95,7 @@ class ChatInterface:
             for message in messages:
                 self._render_message(message)
             
-            # Show typing indicator if processing
-            if st.session_state.processing_state == "streaming":
-                self._render_typing_indicator()
+            # No typing indicator needed
     
     def _render_message(self, message: ChatMessage) -> None:
         """Render a single chat message."""
@@ -112,11 +109,6 @@ class ChatInterface:
             with st.chat_message("system"):
                 st.info(message.content)
     
-    def _render_typing_indicator(self) -> None:
-        """Render typing indicator while processing."""
-        with st.chat_message("assistant"):
-            typing_text = "●●●"
-            st.markdown(f"*{typing_text}*")
     
     def update_assistant_message(self, content: str, append: bool = True) -> None:
         """Update the last assistant message or create a new one."""
@@ -131,16 +123,6 @@ class ChatInterface:
             # Create new assistant message
             self.add_message("assistant", content)
     
-    def render_typing_animation(self) -> None:
-        """Render a smooth typing animation."""
-        import time
-        
-        typing_frames = ["●●●", "●○○", "○●○", "○○●", "○○○"]
-        
-        for frame in typing_frames:
-            with st.empty():
-                st.markdown(f"*{frame}*")
-            time.sleep(0.3)
     
     def render_progress_bar(self, current: int, total: int, phase: str) -> None:
         """Render a progress bar for the current phase."""
@@ -271,7 +253,9 @@ class ChatInterface:
     
     def complete_processing(self, extracted_data) -> None:
         """Complete the processing and set final state."""
+        print(f"🔍 [DEBUG] complete_processing called - setting state to 'complete'")
         self.set_extracted_data(extracted_data)
         self.set_processing_state("complete")
+        print(f"🔍 [DEBUG] Processing state set to: {st.session_state.get('processing_state')}")
         
         # No generic completion message - let the AI insights be the natural conclusion

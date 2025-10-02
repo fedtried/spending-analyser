@@ -301,42 +301,37 @@ def render_metrics_row(total_spent: float | None = None, total_income: float | N
         else:
             st.metric(label="Total Net", value=f"{DEFAULT_CURRENCY}{total_net:,.2f}")
 
-
-def render_summary_section() -> None:
-    """Render the summary statistics section, using demo data if available."""
-    with st.container(border=True):
-        st.markdown("### Overview 📊")
-        
-        # Show current date range
-        start_date, end_date = get_current_date_range()
-        if start_date and end_date:
-            st.caption(f"Analysis period: {start_date} to {end_date}")
-
-        analysis = st.session_state.get("analysis")
-        if analysis is None:
-            st.write(
-                "Upload your data or load demo data to see personalized summaries, trends, and spending breakdowns."
-            )
-            render_metrics_row()
-        else:
-            render_metrics_row(
-                total_spent=analysis.total_spent,
-                total_income=analysis.total_income,
-                total_net=analysis.total_net,
-            )
-
-
-
 def render_visualizations_section() -> None:
     """Render the visualizations placeholder section with a minimal chart."""
     with st.container(border=True):
         st.markdown("### Visualizations 🎯")
+        
         try:
             df = st.session_state.get("df")
 
             if df is None or df.empty:
                 st.info("Visualization will appear here once data is available.")
                 return
+
+            # Overview metrics section - show when data is available
+            st.markdown("#### Overview 📊")
+            
+            # Show current date range
+            start_date, end_date = get_current_date_range()
+            if start_date and end_date:
+                st.caption(f"Analysis period: {start_date} to {end_date}")
+
+            analysis = st.session_state.get("analysis")
+            if analysis is not None:
+                render_metrics_row(
+                    total_spent=analysis.total_spent,
+                    total_income=analysis.total_income,
+                    total_net=analysis.total_net,
+                )
+            else:
+                render_metrics_row()
+            
+            st.markdown("---")  # Separator between overview and charts
 
             # Daily Income vs Spending with Balance Trend Overlay
             df_bal = df.copy()
@@ -479,6 +474,7 @@ def render_visualizations_section() -> None:
                     st.plotly_chart(cat_fig, use_container_width=True)
             else:
                 st.info("No spending transactions to build a category breakdown.")
+                
         except Exception as exc:
             st.info("Visualization will appear here once data is available.")
             st.caption(f"Renderer note: {exc}")
@@ -492,10 +488,7 @@ def render_chat_section() -> None:
     if chat_interface and st.session_state.get("data_source") in ["Demo Data", "Upload PDF"]:
         with st.container(border=True):
             data_source = st.session_state.get("data_source")
-            if data_source == "Upload PDF":
-                st.markdown("### 💬 PDF Analysis Chat")
-            else:
-                st.markdown("### 💬 Financial Analysis Chat")
+            st.markdown("### 💬 Financial Analysis Chat")
             
             # Handle processing flags
             if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
@@ -503,11 +496,13 @@ def render_chat_section() -> None:
                 uploaded_file = st.session_state.get("uploaded_file")
                 if uploaded_file is not None:
                     st.session_state["is_processing"] = True
+                    st.session_state["processing_state"] = "streaming"
                     process_pdf_with_streaming(uploaded_file)
             
             if st.session_state.get("start_demo_processing") and not st.session_state.get("is_processing"):
                 st.session_state["start_demo_processing"] = False
                 st.session_state["is_processing"] = True
+                st.session_state["processing_state"] = "streaming"
                 process_demo_data_with_ai()
             
             # Only render chat container when not processing AND we haven't completed processing yet
@@ -769,10 +764,6 @@ def main() -> None:
     maybe_load_processed_data()
 
     # Content areas in responsive layout
-    summary_area = st.container()
-    with summary_area:
-        render_summary_section()
-
     # Chat section for analysis
     chat_area = st.container()
     with chat_area:
