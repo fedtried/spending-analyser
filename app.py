@@ -20,6 +20,7 @@ from utils.data_loader import (
     load_user_dataframe,
     analyze_dataframe,
     detect_recurring_charges,
+    detect_day_of_month_recurring_charges,
 )
 from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface

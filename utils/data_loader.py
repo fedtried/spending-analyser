@@ -245,3 +245,69 @@ def detect_recurring_charges(df: pd.DataFrame) -> pd.DataFrame:
     # Heuristic: recurring if cadence weekly/monthly-like AND stable amount
     result['is_recurring'] = ((result['is_monthly_like'] | result['is_weekly_like']) & (result['amount_cv'] <= 0.25) & (result['count'] >= 2))
     return result
+
+
+def detect_day_of_month_recurring_charges(df: pd.DataFrame) -> pd.DataFrame:
+    """Detect recurring charges by day-of-month and amount patterns.
+    
+    This function complements detect_recurring_charges by identifying recurring
+    payments that occur on the same day of each month with the same amount,
+    even if the merchant description varies slightly.
+    
+    Returns a dataframe with columns:
+      - day_of_month: day of month (1-31)
+      - amount: recurring amount
+      - merchant: example merchant/description
+      - category: merchant category
+      - count: number of occurrences
+      - first_date: first occurrence date
+      - last_date: last occurrence date
+      - is_monthly_recurring: bool for monthly-like patterns
+      - amount_cv: coefficient of variation (should be 0 for exact matches)
+      - is_recurring: bool for confirmed recurring patterns
+    """
+    if df is None or df.empty:
+        return pd.DataFrame(columns=[
+            'day_of_month', 'amount', 'merchant', 'category', 'count', 
+            'first_date', 'last_date', 'is_monthly_recurring', 'amount_cv', 'is_recurring'
+        ])
+    
+    # Work with both positive and negative amounts
+    df_work = df.copy()
+    df_work['day_of_month'] = df_work['timestamp'].dt.day
+    df_work['abs_amount'] = df_work['amount'].abs()
+    
+    groups = []
+    for (day, amount), g in df_work.groupby(['day_of_month', 'amount']):
+        if len(g) < 2:
+            continue
+            
+        # Calculate amount stability (should be 0 for exact matches)
+        amt_std = float(g['abs_amount'].std(ddof=0)) if len(g) > 1 else 0.0
+        amt_median = float(g['abs_amount'].median())
+        amt_cv = (amt_std / amt_median) if amt_median > 0 else 0.0
+        
+        # Check if it's monthly recurring (appears in multiple months)
+        months = g['timestamp'].dt.to_period('M').nunique()
+        is_monthly_recurring = months >= 2
+        
+        groups.append({
+            'day_of_month': int(day),
+            'amount': float(amount),
+            'merchant': str(g['merchant'].iloc[-1]) if 'merchant' in g.columns else str(g['description'].iloc[-1]),
+            'category': str(g['category'].iloc[-1]) if 'category' in g.columns else 'Unknown',
+            'count': int(len(g)),
+            'first_date': g['timestamp'].min(),
+            'last_date': g['timestamp'].max(),
+            'is_monthly_recurring': bool(is_monthly_recurring),
+            'amount_cv': amt_cv
+        })
+    
+    result = pd.DataFrame(groups)
+    if result.empty:
+        return result
+    
+    # Filter for monthly recurring patterns with stable amounts
+    result['is_recurring'] = (result['is_monthly_recurring'] & (result['amount_cv'] <= 0.25) & (result['count'] >= 2))
+    
+    return result.sort_values(['count', 'amount'], ascending=[False, False])
