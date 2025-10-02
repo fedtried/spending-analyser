@@ -87,6 +87,8 @@ def init_session_state() -> None:
         "is_processing": False,  # Guard to prevent duplicate runs
         "last_filtered_start_date": None,  # Track last filtered start date
         "last_filtered_end_date": None,  # Track last filtered end date
+        "stream_gen": None,  # Active streaming generator
+        "ai_buffer": "",  # Accumulates assistant streamed text
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -146,6 +148,13 @@ def render_data_source_section() -> None:
                 help="Begin analyzing the demo data with AI insights"
             ):
                 # Set flag to start demo processing
+                # Ensure we can always restart streaming cleanly
+                st.session_state["demo_ai_processed"] = False
+                st.session_state["is_processing"] = False
+                # Clear previous chat messages if any
+                chat_interface = st.session_state.get("chat_interface")
+                if chat_interface:
+                    chat_interface.clear_messages()
                 st.session_state["start_demo_processing"] = True
                 st.session_state["processing_state"] = "uploading"
                 st.session_state["data_source"] = "Demo Data"
@@ -478,9 +487,16 @@ def render_chat_section() -> None:
                 st.session_state["start_demo_processing"] = False
                 st.session_state["is_processing"] = True
                 st.session_state["processing_state"] = "streaming"
-                process_demo_data_with_ai()
+                # Initialize non-blocking streaming state
+                st.session_state["ai_buffer"] = ""
+                process_demo_data_with_ai(init_only=True)
+                st.rerun()
             
             # Show download section if processing is complete and we have data - COMMENTED OUT FOR DEMO ONLY
+            # Non-blocking streaming tick
+            if st.session_state.get("processing_state") == "streaming" and st.session_state.get("stream_gen") is not None:
+                _tick_streaming()
+
             # if st.session_state.get("data_source") == "Upload PDF":
             #     chat_interface.render_download_section()
 
@@ -589,10 +605,12 @@ def get_current_date_range():
 #         st.session_state["is_processing"] = False
 
 
-def process_demo_data_with_ai() -> None:
+def process_demo_data_with_ai(init_only: bool = False) -> None:
     """Process demo data with AI analysis using streaming chat interface."""
     # Check if demo data has already been processed
     if st.session_state.get("demo_ai_processed", False):
+        # If already processed, ensure no stuck processing guard and exit gracefully
+        st.session_state["is_processing"] = False
         return
     
     chat_interface = st.session_state.get("chat_interface")
@@ -608,40 +626,27 @@ def process_demo_data_with_ai() -> None:
     # Start AI analysis for demo data
     chat_interface.start_demo_analysis()
     
-    # Create a placeholder for streaming content
-    message_placeholder = st.empty()
+    # Init or reuse non-blocking generator
+    if init_only:
+        try:
+            gen = streaming_processor.process_demo_data_streaming(df, chat_interface)
+            st.session_state["stream_gen"] = gen
+        except Exception as e:
+            st.error(f"Failed to start streaming: {str(e)}")
+            st.session_state["is_processing"] = False
+        return
     
     # Process demo data with AI analysis
+    # Fallback to blocking mode when explicitly called without init_only (rare)
     try:
         full_response = ""
         for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
             full_response += chunk
-            # Add chunk to chat interface for real-time display
             chat_interface.update_assistant_message(chunk, append=True)
-            # Update the message in real-time using placeholder
-            with message_placeholder.container():
-                chat_interface.render_chat_container()
-            time.sleep(0.1)  # Small delay for smooth streaming
-        
-        # Persist unfiltered data; visualizations will filter on the fly
-        st.session_state["df_raw"] = df
-        st.session_state["df"] = df
-        st.session_state["analysis"] = analyze_dataframe(df)
-        
-        # Set AI summary
-        st.session_state["ai_pdf_summary"] = full_response
-        
-        # Mark demo data as processed
-        st.session_state["demo_ai_processed"] = True
-        
-        chat_interface.complete_processing(df)
-        
+        st.experimental_rerun()
     except Exception as e:
         st.error(f"Demo data AI analysis failed: {str(e)}")
         chat_interface.add_message("system", f"❌ Analysis failed: {str(e)}")
-    finally:
-        # Always clear processing guard at end
-        st.session_state["is_processing"] = False
 
 
 # PDF CONVERSION FUNCTION COMMENTED OUT FOR DEMO ONLY
@@ -681,6 +686,44 @@ def maybe_load_processed_data() -> None:
     if (st.session_state.get("df") is not None and 
         st.session_state.get("processing_state") not in ["streaming", "uploading"]):
         return
+
+
+def _tick_streaming() -> None:
+    """Advance the active streaming generator a few chunks per rerun and request another rerun."""
+    chat_interface = st.session_state.get("chat_interface")
+    gen = st.session_state.get("stream_gen")
+    if not chat_interface or gen is None:
+        return
+    try:
+        # Pull a small number of chunks per tick
+        max_chunks = 5
+        for _ in range(max_chunks):
+            chunk = next(gen)
+            st.session_state["ai_buffer"] += chunk
+            chat_interface.update_assistant_message(chunk, append=True)
+        # Schedule another rerun to continue streaming
+        st.rerun()
+    except StopIteration:
+        # Finalize on completion
+        df = st.session_state.get("df_raw") or st.session_state.get("df")
+        if df is None:
+            # If not yet set, load and analyze now (for demo path)
+            df = load_demo_dataframe()
+            st.session_state["df_raw"] = df
+            st.session_state["df"] = df
+            st.session_state["analysis"] = analyze_dataframe(df)
+        st.session_state["ai_pdf_summary"] = st.session_state.get("ai_buffer", "")
+        st.session_state["demo_ai_processed"] = True
+        st.session_state["is_processing"] = False
+        st.session_state["processing_state"] = "complete"
+        st.session_state["stream_gen"] = None
+        if chat_interface:
+            chat_interface.complete_processing(df)
+    except Exception as e:
+        st.error(f"Streaming error: {str(e)}")
+        st.session_state["is_processing"] = False
+        st.session_state["processing_state"] = "idle"
+        st.session_state["stream_gen"] = None
 
 
 def main() -> None:
