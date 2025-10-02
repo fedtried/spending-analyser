@@ -60,7 +60,7 @@ def set_page_config() -> None:
         page_title=f"{APP_NAME} · Financial Analytics",
         page_icon="💰",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
 
 
@@ -102,18 +102,39 @@ def init_chat_components() -> None:
 
 def render_header() -> None:
     """Render the application header with title and tagline."""
-    st.markdown(
-        f"""
-        <div style="display:flex; align-items:center; gap:12px;">
-            <div style="font-size:1.8rem">💰</div>
-            <div>
-                <div style="font-size:1.6rem; font-weight:700; letter-spacing:0.2px;">{APP_NAME}</div>
-                <div style="opacity:0.8; margin-top:2px;">{TAGLINE}</div>
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="font-size:1.8rem">💰</div>
+                <div>
+                    <div style="font-size:1.6rem; font-weight:700; letter-spacing:0.2px;">{APP_NAME}</div>
+                    <div style="opacity:0.8; margin-top:2px;">{TAGLINE}</div>
+                </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
+            for key in ["df", "df_raw", "analysis", "ai_pdf_summary", "demo_ai_processed", 
+                       "is_processing", "stream_buffer"]:
+                if key in st.session_state:
+                    st.session_state[key] = None if key not in ["demo_ai_processed", "is_processing"] else False
+            
+            st.session_state["processing_state"] = "idle"
+            st.session_state["stream_buffer"] = ""
+            
+            chat_interface = st.session_state.get("chat_interface")
+            if chat_interface:
+                chat_interface.clear_messages()
+            
+            st.rerun()
+    
     st.divider()
 
 
@@ -156,73 +177,6 @@ def render_data_source_section() -> None:
                     st.rerun()
 
 
-def render_sidebar() -> None:
-    """Render the sidebar controls for analysis period and view options."""
-    with st.sidebar:
-        st.markdown("### Settings")
-        
-        st.markdown("**Analysis Period**")
-        date_range_type = st.selectbox(
-            label="Time range type",
-            options=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"],
-            index=4,
-            key="date_range_type",
-        )
-        
-        from datetime import timedelta
-        today = date.today()
-        
-        if date_range_type == "Custom Date Range":
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input(
-                    "Start Date",
-                    value=date(2025, 7, 1),
-                    key="start_date"
-                )
-            with col2:
-                end_date = st.date_input(
-                    "End Date", 
-                    value=date(2025, 9, 30),
-                    key="end_date"
-                )
-            
-            if start_date and end_date and start_date > end_date:
-                st.error("Start date must be before end date")
-        else:
-            if date_range_type == "Last 7 days":
-                start_date = today - timedelta(days=6)
-                end_date = today
-            elif date_range_type == "Last 30 days":
-                start_date = today - timedelta(days=29)
-                end_date = today
-            elif date_range_type == "Last 90 days":
-                start_date = today - timedelta(days=89)
-                end_date = today
-            elif date_range_type == "Year to date":
-                start_date = date(today.year, 1, 1)
-                end_date = today
-            
-            st.caption(f"Selected: {start_date} to {end_date}")
-            st.session_state["start_date"] = start_date
-            st.session_state["end_date"] = end_date
-        
-        st.markdown("---")
-        st.markdown("### Reset")
-        if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
-            for key in ["df", "df_raw", "analysis", "ai_pdf_summary", "demo_ai_processed", 
-                       "is_processing", "stream_buffer"]:
-                if key in st.session_state:
-                    st.session_state[key] = None if key not in ["demo_ai_processed", "is_processing"] else False
-            
-            st.session_state["processing_state"] = "idle"
-            st.session_state["stream_buffer"] = ""
-            
-            chat_interface = st.session_state.get("chat_interface")
-            if chat_interface:
-                chat_interface.clear_messages()
-            
-            st.rerun()
 
 
 def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
@@ -310,6 +264,53 @@ def render_visualizations_section() -> None:
         with st.container(border=True):
             st.markdown("### Visualizations 🎯")
             
+            date_range_type = st.selectbox(
+                label="Time range type",
+                options=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"],
+                index=4,
+                key="date_range_type",
+            )
+            
+            from datetime import timedelta
+            today = date.today()
+            
+            if date_range_type == "Custom Date Range":
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "Start Date",
+                        value=date(2025, 7, 1),
+                        key="start_date"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "End Date", 
+                        value=date(2025, 9, 30),
+                        key="end_date"
+                    )
+                
+                if start_date and end_date and start_date > end_date:
+                    st.error("Start date must be before end date")
+            else:
+                if date_range_type == "Last 7 days":
+                    start_date = today - timedelta(days=6)
+                    end_date = today
+                elif date_range_type == "Last 30 days":
+                    start_date = today - timedelta(days=29)
+                    end_date = today
+                elif date_range_type == "Last 90 days":
+                    start_date = today - timedelta(days=89)
+                    end_date = today
+                elif date_range_type == "Year to date":
+                    start_date = date(today.year, 1, 1)
+                    end_date = today
+                
+                st.caption(f"Analysis period: {start_date} to {end_date}")
+                st.session_state["start_date"] = start_date
+                st.session_state["end_date"] = end_date
+            
+            st.markdown("---")
+            
             df_raw = st.session_state.get("df_raw")
             df = df_raw if df_raw is not None else st.session_state.get("df")
             
@@ -324,7 +325,6 @@ def render_visualizations_section() -> None:
                 
                 start_date, end_date = get_current_date_range()
                 if start_date and end_date:
-                    st.caption(f"Analysis period: {start_date} to {end_date}")
                     df = filter_dataframe_by_date_range(df, start_date, end_date)
 
                 if df is not None and not df.empty:
@@ -463,8 +463,36 @@ def render_visualizations_section() -> None:
                         cat_fig = px.pie(cat_df, names="Category", values="Spend", 
                                         title="Share of Spending by Category", hole=0.4,
                                         color_discrete_sequence=accessible_palette)
-                        cat_fig.update_traces(textposition="inside", textinfo="percent+label")
-                        cat_fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
+                        
+                        # Improve text readability by placing labels outside with connecting lines
+                        cat_fig.update_traces(
+                            textposition="outside", 
+                            textinfo="percent+label",
+                            textfont=dict(size=12, color="white"),
+                            hovertemplate="<b>%{label}</b><br>" +
+                                        "Amount: £%{value:,.0f}<br>" +
+                                        "Percentage: %{percent}<extra></extra>",
+                            # Only show labels for segments > 2% to reduce clutter
+                            text=cat_df.apply(lambda row: f"{row['Category']}<br>{row['Spend']/cat_df['Spend'].sum()*100:.1f}%" 
+                                            if row['Spend']/cat_df['Spend'].sum()*100 > 2 else "", axis=1)
+                        )
+                        
+                        # Add connecting lines for outside labels and improve layout
+                        cat_fig.update_layout(
+                            height=400, 
+                            margin=dict(l=40, r=40, t=60, b=40),
+                            showlegend=True,
+                            legend=dict(
+                                orientation="v",
+                                yanchor="middle",
+                                y=0.5,
+                                xanchor="left",
+                                x=1.01,
+                                font=dict(size=11)
+                            ),
+                            font=dict(family="Arial, sans-serif", size=12),
+                            title_font=dict(size=16, color="white")
+                        )
                         st.plotly_chart(cat_fig, use_container_width=True)
                 else:
                     st.info("No spending transactions to build a category breakdown.")
@@ -526,9 +554,25 @@ def render_visualizations_section() -> None:
                                 path=['merchant_str'],
                                 values='Spend',
                                 color='Spend',
-                                color_continuous_scale='RdYlGn_r'
+                                color_continuous_scale='RdYlGn_r',
+                                title="Subscription Garden" + title_suffix
                             )
-                            garden_fig.update_layout(height=360, margin=dict(l=10, r=10, t=40, b=10))
+                            
+                            # Improve treemap tooltip styling
+                            garden_fig.update_traces(
+                                hovertemplate="<b>%{label}</b><br>" +
+                                            "Monthly Spend: £%{value:,.2f}<br>" +
+                                            "Share: %{percentParent:.1%} of subscriptions<extra></extra>",
+                                textinfo="label+value",
+                                texttemplate="%{label}<br>£%{value:,.0f}"
+                            )
+                            
+                            garden_fig.update_layout(
+                                height=360, 
+                                margin=dict(l=10, r=10, t=40, b=10),
+                                font=dict(family="Arial, sans-serif", size=12, color="white"),
+                                title_font=dict(size=16, color="white")
+                            )
                             st.plotly_chart(garden_fig, use_container_width=True)
                     except Exception as _e:
                         st.info(f"Unable to render Subscription Garden: {str(_e)}")
@@ -578,7 +622,6 @@ def main() -> None:
     init_chat_components()
 
     render_header()
-    render_sidebar()
     render_data_source_section()
     render_chat_section()
     render_visualizations_section()
