@@ -23,7 +23,7 @@ from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface
 
 APP_NAME: str = "Spending Analyst"
-TAGLINE: str = "Your financial companion that gets it - no judgment, just insights that actually help"
+TAGLINE: str = "Your financial companion that gets it"
 DEFAULT_CURRENCY: str = "£"
 
 # Handle different Gemini SDK versions
@@ -110,8 +110,8 @@ def render_data_source_section() -> None:
             col1, col2 = st.columns([3, 1])
             
             with col1:
-                st.markdown("### 📊 Demo Data Analysis")
-                st.markdown("**Experience AI-powered financial insights with our sample dataset**")
+                # st.markdown("### Demo Data Analysis")
+                st.markdown("###  📊 Experience AI-powered financial insights with a sample dataset")
                 st.caption("💡 **Tip:** This demo uses realistic UK bank statement data. All personal information has been anonymized for demonstration purposes.")
             
             with col2:
@@ -238,7 +238,6 @@ def render_chat_section() -> None:
         
         if chat_interface and streaming_processor:
             with st.container(border=True):
-                st.markdown("### 💬 Financial Analysis Chat")
                 
                 if (st.session_state.get("processing_state") == "streaming" and 
                     not st.session_state.get("is_processing")):
@@ -307,7 +306,6 @@ def render_visualizations_section() -> None:
                 return
             
             try:
-                st.markdown("#### Overview 📊")
                 
                 start_date, end_date = get_current_date_range()
                 if start_date and end_date:
@@ -323,8 +321,6 @@ def render_visualizations_section() -> None:
                     )
                 else:
                     render_metrics_row()
-                
-                st.markdown("---")
 
                 df_bal = df.copy()
                 df_bal["Day"] = df_bal["timestamp"].dt.date

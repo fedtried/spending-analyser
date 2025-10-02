@@ -221,7 +221,6 @@ class StreamingGeminiProcessor:
         
         yield "\n\n**✅ Analysis Complete!**\n\n"
         yield "Use the visualizations below to explore your spending patterns in detail. "
-        yield "Consider uploading your own bank statement for personalized insights tailored to your actual spending."
     
     def _fallback_demo_analysis(self, df, chat_interface) -> Generator[str, None, None]:
         """Fallback if all else fails."""
