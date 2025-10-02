@@ -11,7 +11,7 @@ import pandas as pd
 
 import streamlit as st
 
-# Gemini imports with fallback handling
+# Handle different Gemini SDK versions
 try:
     from google import genai as genai_client
 except ImportError:
@@ -43,16 +43,9 @@ class StreamingGeminiProcessor:
     def process_demo_data_streaming(self, df, chat_interface) -> Generator[str, None, None]:
         """Process demo data with Gemini AI analysis."""
         try:
-            # Phase 1: Basic overview (can be done locally)
             yield from self._phase1_demo_data_overview(df, chat_interface)
-            
-            # Phase 2: Transaction analysis (local)
             yield from self._phase2_demo_transaction_analysis(df, chat_interface)
-            
-            # Phase 3: REAL AI INSIGHTS - Actually call Gemini!
             yield from self._phase3_real_ai_insights(df, chat_interface)
-            
-            # Phase 4: Summary
             yield from self._phase4_demo_summary(df, chat_interface)
             
         except Exception as e:
@@ -63,7 +56,6 @@ class StreamingGeminiProcessor:
         """Phase 1: Demo data overview - factual analysis."""
         chat_interface.add_progress_update("📊 Analyzing demo data structure...")
         
-        # Calculate real metrics from the dataframe
         total_transactions = len(df)
         date_range = f"{df['timestamp'].min().strftime('%B %d')} to {df['timestamp'].max().strftime('%B %d, %Y')}"
         total_spent = abs(df[df['amount'] < 0]['amount'].sum())
@@ -88,7 +80,6 @@ class StreamingGeminiProcessor:
             
             yield "\n\n**Spending by Category:**\n"
             
-            # Show actual top categories
             for i, (category, amount) in enumerate(category_totals.head(5).items()):
                 percentage = (amount / category_totals.sum()) * 100
                 yield f"{i+1}. **{category}**: £{amount:.0f} ({percentage:.1f}%)\n"
@@ -99,11 +90,9 @@ class StreamingGeminiProcessor:
         """Phase 3: AI-generated insights using Gemini API."""
         chat_interface.add_progress_update("✨ Generating AI insights...")
         
-        # Prepare data summary for Gemini
         spending_df = df[df['amount'] < 0]
         category_totals = (-spending_df['amount']).groupby(spending_df['category']).sum().sort_values(ascending=False)
         
-        # Create a data summary to send to Gemini
         data_summary = {
             "total_transactions": len(df),
             "total_spent": float(abs(spending_df['amount'].sum())),
@@ -120,7 +109,6 @@ class StreamingGeminiProcessor:
             "top_merchants": df[df['amount'] < 0]['merchant'].value_counts().head(5).to_dict()
         }
         
-        # Create prompt for Gemini
         insights_prompt = f"""
         Analyze this spending data and provide personalized, empathetic financial insights.
         
@@ -138,16 +126,13 @@ class StreamingGeminiProcessor:
         Be specific with amounts and percentages. Make it feel personalized to THIS data.
         """
         
-        # Actually call Gemini API!
         try:
             yield "\n\n**AI Analysis of Your Spending:**\n\n"
             
-            # Stream the actual Gemini response
             for chunk in self._stream_gemini_text_response(insights_prompt):
                 yield chunk
                 
         except Exception as e:
-            # Fallback if Gemini fails
             yield f"\n\n⚠️ AI service temporarily unavailable. Here's a basic analysis:\n\n"
             yield from self._generate_basic_insights(data_summary)
     

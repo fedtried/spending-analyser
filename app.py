@@ -12,7 +12,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Newly added utilities
 from utils.config import load_config
 from utils.logging import get_logger
 from utils.data_loader import (
@@ -23,12 +22,11 @@ from utils.data_loader import (
 from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface
 
-# Constants
 APP_NAME: str = "Spending Analyst"
 TAGLINE: str = "Your financial companion that gets it - no judgment, just insights that actually help"
 DEFAULT_CURRENCY: str = "£"
 
-# Optional Gemini imports (SDK may expose either interface depending on version)
+# Handle different Gemini SDK versions
 try:  # Preferred modern client
     from google import genai as genai_client  # type: ignore
 except Exception:  # Fallback to legacy namespace
@@ -124,25 +122,21 @@ def render_data_source_section() -> None:
                     use_container_width=True,
                     help="Begin analyzing the demo data with AI insights"
                 ):
-                    # Clear any previous state
                     chat_interface = st.session_state.get("chat_interface")
                     if chat_interface:
                         chat_interface.clear_messages()
                     
-                    # Reset processing state
                     st.session_state["demo_ai_processed"] = False
                     st.session_state["is_processing"] = False
                     st.session_state["stream_buffer"] = ""
                     st.session_state["processing_state"] = "streaming"
                     st.session_state["data_source"] = "Demo Data"
                     
-                    # Load data immediately
                     df = load_demo_dataframe()
                     st.session_state["df_raw"] = df
                     st.session_state["df"] = df
                     st.session_state["analysis"] = analyze_dataframe(df)
                     
-                    # Rerun to show chat interface
                     st.rerun()
 
 
@@ -238,7 +232,6 @@ def render_metrics_row(total_spent: float | None = None, total_income: float | N
 
 def render_chat_section() -> None:
     """Render the chat interface section with TRUE streaming."""
-    # Show chat when processing starts or is complete
     if st.session_state.get("processing_state") != "idle":
         chat_interface = st.session_state.get("chat_interface")
         streaming_processor = st.session_state.get("streaming_processor")
@@ -247,7 +240,6 @@ def render_chat_section() -> None:
             with st.container(border=True):
                 st.markdown("### 💬 Financial Analysis Chat")
                 
-                # Check if we need to start streaming
                 if (st.session_state.get("processing_state") == "streaming" and 
                     not st.session_state.get("is_processing")):
                     
@@ -255,30 +247,24 @@ def render_chat_section() -> None:
                     df = st.session_state.get("df_raw")
                     
                     if df is not None:
-                        # Start the chat
-                        chat_interface.start_demo_analysis()
-                        
-                        # Create placeholder for streaming content
                         chat_placeholder = st.empty()
                         
+                        # Show initial demo analysis messages immediately
+                        chat_interface.start_demo_analysis()
+                        with chat_placeholder.container():
+                            chat_interface.render_chat_container()
+                        
                         try:
-                            # Collect all chunks from generator
-                            all_chunks = []
-                            for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
-                                all_chunks.append(chunk)
-                            
-                            # Now stream them with actual delays
+                            # Stream chunks directly as they arrive (no pre-buffer)
                             full_text = ""
-                            for chunk in all_chunks:
+                            for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
                                 full_text += chunk
                                 chat_interface.update_assistant_message(chunk, append=True)
                                 
-                                # Update display immediately
                                 with chat_placeholder.container():
                                     chat_interface.render_chat_container()
                                 
-                                # Control streaming speed - adjust this value
-                                # Smaller chunks need shorter delays
+                                # Control streaming speed based on chunk size
                                 if len(chunk) < 10:
                                     time.sleep(0.03)
                                 elif len(chunk) < 50:
@@ -286,13 +272,11 @@ def render_chat_section() -> None:
                                 else:
                                     time.sleep(0.1)
                             
-                            # Mark as complete
                             st.session_state["ai_pdf_summary"] = full_text
                             st.session_state["demo_ai_processed"] = True
                             st.session_state["processing_state"] = "complete"
                             chat_interface.complete_processing(df)
                             
-                            # Final render
                             with chat_placeholder.container():
                                 chat_interface.render_chat_container()
                             
@@ -303,13 +287,11 @@ def render_chat_section() -> None:
                             st.session_state["is_processing"] = False
                 
                 else:
-                    # Just render current state
                     chat_interface.render_chat_container()
 
 
 def render_visualizations_section() -> None:
     """Render the visualizations section."""
-    # Show when processing starts or is complete
     if st.session_state.get("processing_state") != "idle":
         with st.container(border=True):
             st.markdown("### Visualizations 🎯")
@@ -325,7 +307,6 @@ def render_visualizations_section() -> None:
                 return
             
             try:
-                # Overview metrics
                 st.markdown("#### Overview 📊")
                 
                 start_date, end_date = get_current_date_range()
@@ -345,7 +326,6 @@ def render_visualizations_section() -> None:
                 
                 st.markdown("---")
 
-                # Daily Income vs Spending chart
                 df_bal = df.copy()
                 df_bal["Day"] = df_bal["timestamp"].dt.date
                 
@@ -415,7 +395,6 @@ def render_visualizations_section() -> None:
                 
                 st.plotly_chart(fig, use_container_width=True)
 
-                # Category breakdown
                 st.markdown("#### Category Spend Breakdown")
                 
                 spend_df = df[df["amount"] < 0].copy()
