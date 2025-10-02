@@ -213,7 +213,8 @@ class ChatInterface:
         if self.get_processing_state() == "complete":
             data = self.get_extracted_data()
             if data is not None:
-                st.markdown("### 📊 Download Results")
+                st.markdown("### 📊 Download Your Data")
+                st.caption("Want to explore your data further? Download the full transaction details or use the visualizations below.")
                 
                 col1, col2 = st.columns([1, 1])
                 
@@ -273,6 +274,4 @@ class ChatInterface:
         self.set_extracted_data(extracted_data)
         self.set_processing_state("complete")
         
-        # Add completion message
-        total_transactions = len(extracted_data) if extracted_data is not None else 0
-        self.add_message("assistant", f"✅ Analysis complete! Found {total_transactions} transactions. Download CSV below.")
+        # No generic completion message - let the AI insights be the natural conclusion

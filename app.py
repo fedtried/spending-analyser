@@ -480,15 +480,6 @@ def render_visualizations_section() -> None:
             st.caption(f"Renderer note: {exc}")
 
 
-def render_ai_insights_section() -> None:
-    """Render the AI insights placeholder section."""
-    with st.container(border=True):
-        st.markdown("### AI Insights 🤖")
-        summary = st.session_state.get("ai_pdf_summary")
-        if summary:
-            st.write(summary)
-        else:
-            st.info("AI Insights will appear here once data is available.")
 
 
 def render_chat_section() -> None:
@@ -581,6 +572,8 @@ def process_pdf_with_streaming(pdf_file) -> None:
         full_response = ""
         for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
             full_response += chunk
+            # Add chunk to chat interface for real-time display
+            chat_interface.update_assistant_message(chunk, append=True)
             # Update the message in real-time
             with message_placeholder.container():
                 chat_interface.render_chat_container()
@@ -640,6 +633,8 @@ def process_demo_data_with_ai() -> None:
         full_response = ""
         for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
             full_response += chunk
+            # Add chunk to chat interface for real-time display
+            chat_interface.update_assistant_message(chunk, append=True)
             # Update the message in real-time
             with message_placeholder.container():
                 chat_interface.render_chat_container()
@@ -753,9 +748,7 @@ def main() -> None:
     with viz_area:
         render_visualizations_section()
 
-    ai_area = st.container()
-    with ai_area:
-        render_ai_insights_section()
+    # AI insights are now part of the chat flow, not a separate section
 
     # Empty state prompt
     render_empty_state()

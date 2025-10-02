@@ -63,15 +63,25 @@ PART 3 (during extraction): Count and categorize transactions as you find them
 - "💳 Detecting transaction patterns..."
 - "📊 Parsing transactions from {month}..."
 
-PART 4 (insights): Generate 3-5 key insights about spending behavior
-- "Here's what stands out about your spending patterns..."
-- "Rather than seeing this as negative, let's focus on small adjustments..."
+PART 4 (insights): Generate conversational insights about spending behavior
+Focus on being accessible and actionable. Use this style:
+- "This month, your top spending areas were entertainment (£210), groceries (£135), and transport (£60)."
+- "Your entertainment costs are higher than previous months, reflecting more frequent social outings."
+- "If you reduce spending in this category by £50—by skipping one event or subscription—you'll free up money for savings without cutting out what you enjoy."
+- "You spent £38 on recurring subscriptions. Reviewing and canceling any unused service could quickly save you £10 or more per month."
+- "Overall, your spending habits are healthy and support an active lifestyle. With a few simple changes, you can comfortably set aside an extra £60–£75 next month."
+
+Key principles:
+- Use specific amounts and concrete examples
+- Focus on what the spending brings to their life (social connections, health, etc.)
+- Provide actionable suggestions with specific savings amounts
+- Avoid technical terms like "pattern recognition" or "algorithmic analysis"
+- Be encouraging and empowering, not judgmental
+- Speak like a supportive friend who understands money
 
 PART 5 (csv): Output clean CSV format with columns: date,merchant,category,amount,type
 
 Stream your response naturally, as if having a conversation about their finances.
-Be encouraging, understanding, and empowering - like a supportive friend who happens to be great with money.
-No guilt trips, just empowering choices.
 """
     
     def _get_csv_extraction_prompt(self) -> str:
@@ -202,14 +212,14 @@ Rules:
         chat_interface.update_parsing_metrics(categories_identified=8)
     
     def _phase4_ai_insights(self, chat_interface) -> Generator[str, None, None]:
-        """Phase 4: Stream AI insights."""
+        """Phase 4: Stream AI insights in natural, accessible language."""
         chat_interface.add_progress_update("✨ Generating insights...")
         
         insights = [
-            "\n\n**Here's what stands out about your spending patterns:**",
+            "\n\n**Here's what stands out about your spending:**",
             "\n\nRather than seeing your spending as negative, let's celebrate what it brings to your life:",
             "\n• Your grocery spending shows you value home cooking and family meals",
-            "\n• Entertainment expenses reflect your social connections and work-life balance",
+            "\n• Entertainment expenses reflect your social connections and work-life balance", 
             "\n• Transport costs show you're making smart choices about getting around",
             "\n\n**Small adjustments that could help:**",
             "\n• Consider meal planning to reduce food waste and costs",
@@ -234,7 +244,7 @@ Rules:
             try:
                 df = self._parse_csv_from_response(csv_response)
                 chat_interface.set_extracted_data(df)
-                yield f"\n\n✅ **Analysis complete!** Found {len(df)} transactions. Download CSV below."
+                yield f"\n\n📊 **Data extracted successfully!** Found {len(df)} transactions ready for download below."
             except Exception as e:
                 yield f"\n\n⚠️ CSV generation had issues: {str(e)}"
         else:
@@ -404,9 +414,9 @@ Rules:
         
         yield f"\n\nI can see this is a sample bank statement covering **{date_range}** with **{total_transactions} transactions**."
         yield f"\n\nLet me break down what I'm seeing:"
-        yield f"\n• **Total Spending**: £{total_spent:,.2f}"
-        yield f"\n• **Total Income**: £{total_income:,.2f}"
-        yield f"\n• **Net Position**: £{total_income - total_spent:,.2f}"
+        yield f"\n• **Total Spending**: £{total_spent:,.0f}"
+        yield f"\n• **Total Income**: £{total_income:,.0f}"
+        yield f"\n• **Net Position**: £{total_income - total_spent:,.0f}"
         
         # Update metrics
         chat_interface.update_parsing_metrics(transactions_found=total_transactions)
@@ -423,20 +433,20 @@ Rules:
             top_amount = category_totals.iloc[0] if len(category_totals) > 0 else 0
             
             yield f"\n\n**Spending Analysis:**"
-            yield f"\n• **Top Category**: {top_category} (£{top_amount:,.2f})"
+            yield f"\n• **Top Category**: {top_category} (£{top_amount:.0f})"
             yield f"\n• **Categories Found**: {len(category_totals)} different spending categories"
             
             # Show top 3 categories
             yield f"\n• **Top 3 Categories:**"
             for i, (category, amount) in enumerate(category_totals.head(3).items()):
-                yield f"\n  {i+1}. {category}: £{amount:,.2f}"
+                yield f"\n  {i+1}. {category}: £{amount:.0f}"
         
         # Update metrics
         chat_interface.update_parsing_metrics(categories_identified=len(category_totals) if not spending_df.empty else 0)
     
     def _phase3_demo_pattern_recognition(self, df, chat_interface) -> Generator[str, None, None]:
-        """Phase 3: Pattern recognition and trends."""
-        chat_interface.add_progress_update("💳 Detecting spending patterns...")
+        """Phase 3: Natural observation of spending patterns."""
+        chat_interface.add_progress_update("💳 Looking at your spending patterns...")
         
         # Analyze daily patterns
         df['day_of_week'] = df['timestamp'].dt.day_name()
@@ -445,44 +455,69 @@ Rules:
         weekend_spending = df[(df['amount'] > 0) & (df['is_weekend'])]['amount'].sum()
         weekday_spending = df[(df['amount'] > 0) & (~df['is_weekend'])]['amount'].sum()
         
-        yield f"\n\n**Pattern Recognition:**"
-        yield f"\n• **Weekend vs Weekday**: £{weekend_spending:,.2f} vs £{weekday_spending:,.2f}"
+        yield f"\n\n**What I noticed about when you spend:**"
+        yield f"\n• **Weekends**: £{weekend_spending:.0f} • **Weekdays**: £{weekday_spending:.0f}"
         
         if weekend_spending > weekday_spending * 1.2:
-            yield f"\n• You tend to spend more on weekends - this is common for social activities!"
+            yield f"\n• You tend to spend more on weekends - this shows you value your social time and relaxation!"
         elif weekday_spending > weekend_spending * 1.2:
-            yield f"\n• You spend more during the week - likely work-related expenses"
+            yield f"\n• You spend more during the week - likely work-related expenses and daily necessities"
         else:
             yield f"\n• Your spending is quite balanced between weekdays and weekends"
         
         # Analyze merchant patterns
         top_merchants = df[df['amount'] > 0]['merchant'].value_counts().head(3)
         if not top_merchants.empty:
-            yield f"\n• **Frequent Merchants**: {', '.join(top_merchants.index[:3])}"
+            yield f"\n• **Where you shop most**: {', '.join(top_merchants.index[:3])}"
     
     def _phase4_demo_ai_insights(self, df, chat_interface) -> Generator[str, None, None]:
-        """Phase 4: AI-generated insights for demo data."""
+        """Phase 4: AI-generated insights for demo data in natural, accessible language."""
         chat_interface.add_progress_update("✨ Generating personalized insights...")
         
-        # Calculate some insights
-        total_spent = df[df['amount'] > 0]['amount'].sum()
-        avg_transaction = df[df['amount'] > 0]['amount'].mean()
-        num_transactions = len(df[df['amount'] > 0])
+        # Calculate spending by category
+        spending_df = df[df['amount'] > 0]
+        category_totals = spending_df.groupby('category')['amount'].sum().sort_values(ascending=False)
         
-        yield f"\n\n**Here's what stands out about your spending patterns:**"
-        yield f"\n\nRather than seeing your spending as negative, let's celebrate what it brings to your life:"
-        yield f"\n• Your **average transaction** of £{avg_transaction:.2f} shows thoughtful spending"
-        yield f"\n• With **{num_transactions} transactions**, you're actively managing your finances"
-        yield f"\n• Your **total spending** of £{total_spent:,.2f} reflects your lifestyle choices"
+        # Get top categories with specific amounts
+        top_categories = category_totals.head(3)
+        total_spent = spending_df['amount'].sum()
+        
+        # Calculate subscription spending
+        subscriptions = spending_df[spending_df['category'].isin(['Entertainment']) & 
+                                  spending_df['merchant'].str.contains('SUBSCRIPTION|NETFLIX|SPOTIFY', case=False, na=False)]
+        subscription_total = subscriptions['amount'].sum() if not subscriptions.empty else 0
+        
+        yield f"\n\n**Here's what stands out about your spending:**"
+        
+        # Top spending areas with specific amounts
+        if len(top_categories) >= 3:
+            yield f"\n\nThis month, your top spending areas were {top_categories.index[0].lower()} (£{top_categories.iloc[0]:.0f}), {top_categories.index[1].lower()} (£{top_categories.iloc[1]:.0f}), and {top_categories.index[2].lower()} (£{top_categories.iloc[2]:.0f})."
+        
+        # Entertainment insights
+        if 'Entertainment' in category_totals:
+            entertainment_spend = category_totals['Entertainment']
+            yield f"\n\nYour entertainment spending of £{entertainment_spend:.0f} reflects an active social life. This is great for your wellbeing and connections with others."
+        
+        # Subscription insights
+        if subscription_total > 0:
+            yield f"\n\nYou spent £{subscription_total:.0f} on recurring subscriptions. Reviewing and canceling any unused service could quickly save you £10 or more per month."
+        
+        # Grocery insights
+        if 'Groceries' in category_totals:
+            grocery_spend = category_totals['Groceries']
+            yield f"\n\nYour grocery spending of £{grocery_spend:.0f} shows you value home cooking and family meals. This is a healthy and cost-effective approach."
         
         yield f"\n\n**Small adjustments that could help:**"
-        yield f"\n• Consider setting up automatic savings transfers"
-        yield f"\n• Review subscription services monthly to ensure you're using them"
+        yield f"\n• Consider meal planning to reduce food waste and save £10-15 per month"
+        yield f"\n• Review subscription services to ensure you're using them regularly"
         yield f"\n• Look for opportunities to consolidate similar purchases"
-        yield f"\n• Set spending alerts for categories that tend to get out of hand"
+        
+        # Overall assessment - this becomes the natural conclusion
+        yield f"\n\nOverall, your spending habits are healthy and support an active lifestyle. With a few simple changes, you can comfortably set aside an extra £30-50 next month while still enjoying what matters most to you."
+        yield f"\n\nThis improves your financial buffer, while still leaving room for the experiences and routines that matter most to you."
     
     def _phase5_demo_summary(self, df, chat_interface) -> Generator[str, None, None]:
-        """Phase 5: Final summary and recommendations."""
+        """Phase 5: Final summary and recommendations in natural language."""
         chat_interface.add_progress_update("📊 Generating final summary...")
         
         total_transactions = len(df)
@@ -490,20 +525,20 @@ Rules:
         total_income = abs(df[df['amount'] < 0]['amount'].sum())
         
         yield f"\n\n**✅ Analysis Complete!**"
-        yield f"\n\nI've analyzed your **{total_transactions} transactions** and here's what I found:"
-        yield f"\n• **Total Spending**: £{total_spent:,.2f}"
-        yield f"\n• **Total Income**: £{total_income:,.2f}"
-        yield f"\n• **Net Position**: £{total_income - total_spent:,.2f}"
+        yield f"\n\nI've looked through your **{total_transactions} transactions** and here's what I found:"
+        yield f"\n• **Total Spending**: £{total_spent:,.0f}"
+        yield f"\n• **Total Income**: £{total_income:,.0f}"
+        yield f"\n• **Net Position**: £{total_income - total_spent:,.0f}"
         
-        yield f"\n\n**Key Takeaways:**"
-        yield f"\n• Your financial data shows a healthy mix of income and expenses"
-        yield f"\n• There are opportunities for small optimizations without sacrificing lifestyle"
-        yield f"\n• Regular monitoring will help you stay on track with your financial goals"
+        yield f"\n\n**What this means for you:**"
+        yield f"\n• Your spending supports a balanced lifestyle with room for both necessities and enjoyment"
+        yield f"\n• There are opportunities for small optimizations without cutting out what you value"
+        yield f"\n• Regular check-ins like this will help you stay confident about your financial choices"
         
-        yield f"\n\n**Next Steps:**"
-        yield f"\n• Use the visualizations below to explore your data further"
-        yield f"\n• Try uploading your own PDF to get personalized analysis"
-        yield f"\n• Consider setting up regular financial reviews"
+        yield f"\n\n**What you can do next:**"
+        yield f"\n• Use the charts below to explore your spending patterns visually"
+        yield f"\n• Try uploading your own bank statement for personalized insights"
+        yield f"\n• Consider setting up a monthly financial review to track your progress"
     
     def _fallback_demo_analysis(self, df, chat_interface) -> Generator[str, None, None]:
         """Fallback analysis for demo data if streaming fails."""
