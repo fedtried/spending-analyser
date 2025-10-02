@@ -84,6 +84,8 @@ def init_session_state() -> None:
         "start_pdf_processing": False,  # Flag to start PDF processing
         "start_demo_processing": False,  # Flag to start demo processing
         "is_processing": False,  # Guard to prevent duplicate runs
+        "last_filtered_start_date": None,  # Track last filtered start date
+        "last_filtered_end_date": None,  # Track last filtered end date
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -180,6 +182,8 @@ def render_data_source_section() -> None:
                     st.session_state["start_pdf_processing"] = False
                     st.session_state["start_demo_processing"] = False
                     st.session_state["is_processing"] = False
+                    st.session_state["last_filtered_start_date"] = None
+                    st.session_state["last_filtered_end_date"] = None
                     
                     # Clear chat messages
                     chat_interface = st.session_state.get("chat_interface")
@@ -506,7 +510,15 @@ def render_chat_section() -> None:
                 st.session_state["is_processing"] = True
                 process_demo_data_with_ai()
             
-            chat_interface.render_chat_container()
+            # Only render chat container when not processing AND we haven't completed processing yet
+            is_processing = st.session_state.get("is_processing", False)
+            has_completed_processing = st.session_state.get("demo_ai_processed", False)
+            
+            if not is_processing and not has_completed_processing:
+                print(f"🔍 [DEBUG] Rendering chat container in main section (initial state)")
+                chat_interface.render_chat_container()
+            else:
+                print(f"🔍 [DEBUG] Skipping main section render (processing: {is_processing}, completed: {has_completed_processing})")
             
             # Show download section if processing is complete and we have data
             if st.session_state.get("data_source") == "Upload PDF":
@@ -554,6 +566,10 @@ def get_current_date_range():
 
 def process_pdf_with_streaming(pdf_file) -> None:
     """Process PDF with streaming chat interface."""
+    # Check if we're already processing or have processed this file
+    if st.session_state.get("is_processing", False):
+        return
+    
     chat_interface = st.session_state.get("chat_interface")
     streaming_processor = st.session_state.get("streaming_processor")
     
@@ -570,18 +586,20 @@ def process_pdf_with_streaming(pdf_file) -> None:
     # Process PDF with streaming
     try:
         full_response = ""
+        print(f"🔍 [DEBUG] Starting PDF streaming processing...")
         for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
             full_response += chunk
+            print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
             # Add chunk to chat interface for real-time display
             chat_interface.update_assistant_message(chunk, append=True)
-            # Update the message in real-time
+            # Update the message in real-time using placeholder
+            print(f"🔍 [DEBUG] Rendering chat container in PDF streaming placeholder")
             with message_placeholder.container():
                 chat_interface.render_chat_container()
             time.sleep(0.1)  # Small delay for smooth streaming
         
-        # Final update
-        with message_placeholder.container():
-            chat_interface.render_chat_container()
+        print(f"🔍 [DEBUG] Streaming complete. Full response length: {len(full_response)}")
+        print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
         
         # Complete processing
         extracted_data = chat_interface.get_extracted_data()
@@ -612,6 +630,10 @@ def process_pdf_with_streaming(pdf_file) -> None:
 
 def process_demo_data_with_ai() -> None:
     """Process demo data with AI analysis using streaming chat interface."""
+    # Check if demo data has already been processed
+    if st.session_state.get("demo_ai_processed", False):
+        return
+    
     chat_interface = st.session_state.get("chat_interface")
     streaming_processor = st.session_state.get("streaming_processor")
     
@@ -631,18 +653,19 @@ def process_demo_data_with_ai() -> None:
     # Process demo data with AI analysis
     try:
         full_response = ""
+        print(f"🔍 [DEBUG] Starting demo data streaming processing...")
         for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
             full_response += chunk
+            print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
             # Add chunk to chat interface for real-time display
             chat_interface.update_assistant_message(chunk, append=True)
-            # Update the message in real-time
+            # Update the message in real-time using placeholder
             with message_placeholder.container():
                 chat_interface.render_chat_container()
             time.sleep(0.1)  # Small delay for smooth streaming
         
-        # Final update
-        with message_placeholder.container():
-            chat_interface.render_chat_container()
+        print(f"🔍 [DEBUG] Demo streaming complete. Full response length: {len(full_response)}")
+        print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
         
         # Apply date range filter
         start_date, end_date = get_current_date_range()
@@ -657,14 +680,17 @@ def process_demo_data_with_ai() -> None:
         
         # Mark demo data as processed
         st.session_state["demo_ai_processed"] = True
+        print(f"🔍 [DEBUG] Demo processing complete, setting demo_ai_processed=True")
         
         chat_interface.complete_processing(df)
+        print(f"🔍 [DEBUG] Chat interface complete_processing called")
         
     except Exception as e:
         st.error(f"Demo data AI analysis failed: {str(e)}")
         chat_interface.add_message("system", f"❌ Analysis failed: {str(e)}")
     finally:
         # Always clear processing guard at end
+        print(f"🔍 [DEBUG] Demo processing finally block - setting is_processing=False")
         st.session_state["is_processing"] = False
 
 
@@ -701,16 +727,24 @@ def maybe_load_processed_data() -> None:
     """Load data if it has already been processed."""
     # Only load data if we have it and it's not currently being processed
     if (st.session_state.get("df") is not None and 
-        st.session_state.get("processing_state") != "streaming"):
+        st.session_state.get("processing_state") not in ["streaming", "uploading"]):
         
-        # Apply date range filter if dates have changed
+        # Check if we need to re-apply date filtering
         start_date, end_date = get_current_date_range()
         if start_date and end_date:
             df = st.session_state.get("df")
             if df is not None:
-                filtered_df = filter_dataframe_by_date_range(df, start_date, end_date)
-                st.session_state["df"] = filtered_df
-                st.session_state["analysis"] = analyze_dataframe(filtered_df)
+                # Only re-filter if the date range has actually changed
+                current_start = st.session_state.get("last_filtered_start_date")
+                current_end = st.session_state.get("last_filtered_end_date")
+                
+                if (current_start != start_date or current_end != end_date):
+                    filtered_df = filter_dataframe_by_date_range(df, start_date, end_date)
+                    st.session_state["df"] = filtered_df
+                    st.session_state["analysis"] = analyze_dataframe(filtered_df)
+                    # Remember the dates we filtered with
+                    st.session_state["last_filtered_start_date"] = start_date
+                    st.session_state["last_filtered_end_date"] = end_date
 
 
 def main() -> None:
