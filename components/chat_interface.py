@@ -253,9 +253,7 @@ class ChatInterface:
     
     def complete_processing(self, extracted_data) -> None:
         """Complete the processing and set final state."""
-        print(f"🔍 [DEBUG] complete_processing called - setting state to 'complete'")
         self.set_extracted_data(extracted_data)
         self.set_processing_state("complete")
-        print(f"🔍 [DEBUG] Processing state set to: {st.session_state.get('processing_state')}")
         
         # No generic completion message - let the AI insights be the natural conclusion

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Tuple, IO, Optional
 import os
 import io
+import random
 
 import pandas as pd
 import base64
@@ -54,11 +55,9 @@ def _normalize_dataframe(raw_df: pd.DataFrame) -> pd.DataFrame:
         else:
             df["timestamp"] = pd.NaT
 
-    # Amount: internal convention is negative for spend. Many exports use positive for spend.
+    # Amount: internal convention is negative for spend and positive for income.
     if "amount" in df.columns:
         df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-        # For demo data, amounts are already negative for income, positive for spending
-        # So we don't need to flip signs
     else:
         df["amount"] = pd.NA
     
@@ -92,9 +91,23 @@ def _normalize_dataframe(raw_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_demo_dataframe() -> pd.DataFrame:
-    """Load the bundled demo CSV and normalize to internal schema."""
+    """Load a randomly selected demo CSV and normalize to internal schema."""
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-    csv_path = os.path.join(repo_root, "demo-data.csv")
+    demo_folder = os.path.join(repo_root, "demo-data")
+    
+    # Dynamically find all demo-data-N.csv files in the demo-data folder
+    import glob
+    demo_pattern = os.path.join(demo_folder, "demo-data-*.csv")
+    demo_files = glob.glob(demo_pattern)
+    
+    if not demo_files:
+        raise FileNotFoundError(f"No demo-data-*.csv files found in {demo_folder}")
+    
+    # Extract just the filenames for random selection
+    demo_filenames = [os.path.basename(f) for f in demo_files]
+    selected_file = random.choice(demo_filenames)
+    csv_path = os.path.join(demo_folder, selected_file)
+    
     raw_df = pd.read_csv(csv_path)
     return _normalize_dataframe(raw_df)
 
@@ -141,12 +154,13 @@ def analyze_dataframe(df: pd.DataFrame) -> AnalysisResult:
 
     totals: dict[str, float] = {}
     for t in transactions:
-        # Only include spending transactions (positive amounts) in category totals
-        if t.amount > 0:
-            totals[t.category or "Uncategorized"] = totals.get(t.category or "Uncategorized", 0.0) + t.amount
+        # Include spending transactions (negative amounts) in category totals as positive magnitudes
+        if t.amount < 0:
+            key = t.category or "Uncategorized"
+            totals[key] = totals.get(key, 0.0) + (-t.amount)
 
-    total_spent = sum(a for a in (t.amount for t in transactions) if a > 0)
-    total_income = abs(sum(a for a in (t.amount for t in transactions) if a < 0))
+    total_spent = abs(sum(a for a in (t.amount for t in transactions) if a < 0))
+    total_income = sum(a for a in (t.amount for t in transactions) if a > 0)
     total_net = total_income - total_spent
 
     insights = [

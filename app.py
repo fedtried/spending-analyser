@@ -70,9 +70,9 @@ def init_session_state() -> None:
         "app_state": "initial",  # "initial" or "final" - controls UI visibility
         "data_source": "Demo Data",  # Will be determined by file upload
         "analysis_period": "Custom Date Range",
-        "date_range_type": "Custom Date Range",  # "Last 7 days", "Last 30 days", etc. or "Custom Date Range"
-        "start_date": date(2025, 7, 1),  # Default to demo data range start
-        "end_date": date(2025, 9, 30),   # Default to demo data range end
+        # "date_range_type": "Custom Date Range",  # Removed to avoid conflict with widget default
+        # "start_date": date(2025, 7, 1),  # Removed to avoid conflict with widget default
+        # "end_date": date(2025, 9, 30),   # Removed to avoid conflict with widget default
         "currency": DEFAULT_CURRENCY,
         "df": None,  # placeholder for DataFrame when added later
         "analysis": None,  # AnalysisResult placeholder
@@ -124,61 +124,37 @@ def render_header() -> None:
 
 
 def render_data_source_section() -> None:
-    """Render the data source selection section with upload and GO button."""
+    """Render the data source selection section with demo data showcase."""
     # Only show in initial state
     if st.session_state.get("app_state") != "initial":
         return
-        
+    
+    # Main container with enhanced styling
     with st.container(border=True):
-        st.markdown("### 📊 Choose Your Data Source")
-        st.caption("Use demo data to explore the features and see how the AI analysis works.")
-        
-        col1, col2 = st.columns([2, 1])
+        # Header section with button on the right
+        col1, col2 = st.columns([3, 1])
         
         with col1:
-            # File uploader - COMMENTED OUT FOR DEMO ONLY
-            # uploaded_file = st.file_uploader(
-            #     "Upload PDF bank statement",
-            #     type=["pdf"],
-            #     accept_multiple_files=False,
-            #     help="Upload your bank statement PDF for AI-powered analysis. Leave empty to use demo data.",
-            #     key="main_uploader"
-            # )
-            
-            # Store uploaded file in session state
-            # st.session_state["uploaded_file"] = uploaded_file
-            
-            # Determine data source based on upload
-            # if uploaded_file is not None:
-            #     st.session_state["data_source"] = "Upload PDF"
-            #     st.success(f"📎 Ready to analyze: {uploaded_file.name}")
-            # else:
-            #     st.session_state["data_source"] = "Demo Data"
-            #     st.info("📊 Will use demo data for analysis")
-            
-            # FORCE DEMO DATA ONLY
-            st.session_state["data_source"] = "Demo Data"
-            st.info("📊 Using demo data for analysis")
+            st.markdown("### 📊 Demo Data Analysis")
+            st.markdown("**Experience AI-powered financial insights with our sample dataset**")
+            st.caption("💡 **Tip:** This demo uses realistic UK bank statement data. All personal information has been anonymized for demonstration purposes.")
         
         with col2:
-            st.markdown("**Ready to analyze?**")
-            
-            # GO button
-            if st.button("🚀 GO", type="primary", use_container_width=True, help="Start the AI analysis"):
-                # Only demo data processing available
-                if st.session_state.get("data_source") == "Demo Data":
-                    # Set flag to start demo processing
-                    st.session_state["start_demo_processing"] = True
-                    st.session_state["processing_state"] = "uploading"
-                    # Change app state to final
-                    st.session_state["app_state"] = "final"
-                else:
-                    st.error("Demo data processing only")
-            
-            # Show current status
-            st.caption("✅ Demo data ready for analysis")
-        
-        # Processing metrics are shown in the sidebar
+            # Add some vertical spacing to center the button
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button(
+                "🚀 Start AI Analysis", 
+                type="primary", 
+                use_container_width=True,
+                help="Begin analyzing the demo data with AI insights"
+            ):
+                # Set flag to start demo processing
+                st.session_state["start_demo_processing"] = True
+                st.session_state["processing_state"] = "uploading"
+                st.session_state["data_source"] = "Demo Data"
+                # Change app state to final
+                st.session_state["app_state"] = "final"
+                st.rerun()
 
 
 def render_sidebar() -> None:
@@ -192,9 +168,7 @@ def render_sidebar() -> None:
         date_range_type = st.selectbox(
             label="Time range type",
             options=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"],
-            index=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"].index(
-                st.session_state.get("date_range_type", "Custom Date Range")
-            ),
+            index=4,  # Default to "Custom Date Range"
             key="date_range_type",
         )
         
@@ -207,13 +181,13 @@ def render_sidebar() -> None:
             with col1:
                 start_date = st.date_input(
                     "Start Date",
-                    value=st.session_state.get("start_date") or date(2025, 7, 1),
+                    value=date(2025, 7, 1),  # Default value only
                     key="start_date"
                 )
             with col2:
                 end_date = st.date_input(
                     "End Date", 
-                    value=st.session_state.get("end_date") or date(2025, 9, 30),
+                    value=date(2025, 9, 30),  # Default value only
                     key="end_date"
                 )
             
@@ -349,12 +323,11 @@ def render_visualizations_section() -> None:
             df_bal = df.copy()
             df_bal["Day"] = df_bal["timestamp"].dt.date
             
-            # Calculate daily income and spending based on amount sign
-            # In demo data: negative amounts = income, positive amounts = spending
-            daily_income = df_bal[df_bal["amount"] < 0].groupby("Day")["amount"].sum().reset_index(name="Income")
-            daily_income["Income"] = -daily_income["Income"]  # Convert to positive for display
+            # Calculate daily income and spending based on amount sign (Income=+, Spend=-)
+            daily_income = df_bal[df_bal["amount"] > 0].groupby("Day")["amount"].sum().reset_index(name="Income")
             
-            daily_spending = df_bal[df_bal["amount"] > 0].groupby("Day")["amount"].sum().reset_index(name="Spending")
+            daily_spending = df_bal[df_bal["amount"] < 0].groupby("Day")["amount"].sum().reset_index(name="Spending")
+            daily_spending["Spending"] = -daily_spending["Spending"]  # Convert to positive for display
             
             # Merge income and spending data
             daily_bal = pd.merge(daily_income, daily_spending, on="Day", how="outer").fillna(0)
@@ -437,9 +410,9 @@ def render_visualizations_section() -> None:
             # Category Spend Breakdown with controls
             st.markdown("#### Category Spend Breakdown")
             
-            spend_df = df[df["amount"] > 0].copy()
+            spend_df = df[df["amount"] < 0].copy()
             if not spend_df.empty:
-                spend_df["Spend"] = spend_df["amount"]
+                spend_df["Spend"] = -spend_df["amount"]
                 cat_totals = (
                     spend_df.groupby(spend_df["category"].fillna("Uncategorized"))["Spend"].sum().sort_values(ascending=False)
                 )
@@ -526,10 +499,7 @@ def render_chat_section() -> None:
             has_completed_processing = st.session_state.get("demo_ai_processed", False)
             
             if not is_processing and not has_completed_processing:
-                print(f"🔍 [DEBUG] Rendering chat container in main section (initial state)")
                 chat_interface.render_chat_container()
-            else:
-                print(f"🔍 [DEBUG] Skipping main section render (processing: {is_processing}, completed: {has_completed_processing})")
             
             # Show download section if processing is complete and we have data - COMMENTED OUT FOR DEMO ONLY
             # if st.session_state.get("data_source") == "Upload PDF":
@@ -569,10 +539,15 @@ def get_current_date_range():
     
     if date_range_type == "Custom Date Range":
         # For custom date range, get from session state (set by the widgets)
-        return st.session_state.get("start_date"), st.session_state.get("end_date")
+        # Provide fallback defaults if not in session state
+        start_date = st.session_state.get("start_date", date(2025, 7, 1))
+        end_date = st.session_state.get("end_date", date(2025, 9, 30))
+        return start_date, end_date
     else:
         # For preset ranges, get from session state
-        return st.session_state.get("start_date"), st.session_state.get("end_date")
+        start_date = st.session_state.get("start_date", date(2025, 7, 1))
+        end_date = st.session_state.get("end_date", date(2025, 9, 30))
+        return start_date, end_date
 
 
 # PDF PROCESSING FUNCTION COMMENTED OUT FOR DEMO ONLY
@@ -598,20 +573,15 @@ def get_current_date_range():
 #     # Process PDF with streaming
 #     try:
 #         full_response = ""
-#         print(f"🔍 [DEBUG] Starting PDF streaming processing...")
 #         for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
 #             full_response += chunk
-#             print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
 #             # Add chunk to chat interface for real-time display
 #             chat_interface.update_assistant_message(chunk, append=True)
 #             # Update the message in real-time using placeholder
-#             print(f"🔍 [DEBUG] Rendering chat container in PDF streaming placeholder")
 #             with message_placeholder.container():
 #                 chat_interface.render_chat_container()
 #             time.sleep(0.1)  # Small delay for smooth streaming
 #         
-#         print(f"🔍 [DEBUG] Streaming complete. Full response length: {len(full_response)}")
-#         print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
 #         
 #         # Complete processing
 #         extracted_data = chat_interface.get_extracted_data()
@@ -665,10 +635,8 @@ def process_demo_data_with_ai() -> None:
     # Process demo data with AI analysis
     try:
         full_response = ""
-        print(f"🔍 [DEBUG] Starting demo data streaming processing...")
         for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
             full_response += chunk
-            print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
             # Add chunk to chat interface for real-time display
             chat_interface.update_assistant_message(chunk, append=True)
             # Update the message in real-time using placeholder
@@ -676,8 +644,6 @@ def process_demo_data_with_ai() -> None:
                 chat_interface.render_chat_container()
             time.sleep(0.1)  # Small delay for smooth streaming
         
-        print(f"🔍 [DEBUG] Demo streaming complete. Full response length: {len(full_response)}")
-        print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
         
         # Apply date range filter
         start_date, end_date = get_current_date_range()
@@ -692,17 +658,14 @@ def process_demo_data_with_ai() -> None:
         
         # Mark demo data as processed
         st.session_state["demo_ai_processed"] = True
-        print(f"🔍 [DEBUG] Demo processing complete, setting demo_ai_processed=True")
         
         chat_interface.complete_processing(df)
-        print(f"🔍 [DEBUG] Chat interface complete_processing called")
         
     except Exception as e:
         st.error(f"Demo data AI analysis failed: {str(e)}")
         chat_interface.add_message("system", f"❌ Analysis failed: {str(e)}")
     finally:
         # Always clear processing guard at end
-        print(f"🔍 [DEBUG] Demo processing finally block - setting is_processing=False")
         st.session_state["is_processing"] = False
 
 

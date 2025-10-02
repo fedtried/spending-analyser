@@ -92,7 +92,7 @@ Transaction_Date,Posting_Date,Description,Transaction_Type,Merchant_Category,Amo
 
 Rules:
 - Use YYYY-MM-DD dates
-- Positive amounts for spending, negative for income
+- Positive amounts for income, negative for spending
 - For Merchant_Category, choose from: Groceries, Transport, Dining, Retail, Utilities, Entertainment, Health, Cash, Savings, Transfer, Income, Uncategorized
 - Be specific with categories (e.g., 'Tesco' → 'Groceries', 'Uber' → 'Transport')
 - Output ONLY the CSV data, no explanations or code blocks
@@ -409,8 +409,8 @@ Rules:
         # Analyze the demo data
         total_transactions = len(df)
         date_range = f"{df['timestamp'].min().strftime('%Y-%m-%d')} to {df['timestamp'].max().strftime('%Y-%m-%d')}"
-        total_spent = df[df['amount'] > 0]['amount'].sum()
-        total_income = abs(df[df['amount'] < 0]['amount'].sum())
+        total_spent = abs(df[df['amount'] < 0]['amount'].sum())
+        total_income = df[df['amount'] > 0]['amount'].sum()
         
         yield f"\n\nI can see this is a sample bank statement covering **{date_range}** with **{total_transactions} transactions**."
         yield f"\n\nLet me break down what I'm seeing:"
@@ -426,9 +426,9 @@ Rules:
         chat_interface.add_progress_update("🔍 Analyzing transaction patterns...")
         
         # Analyze spending by category
-        spending_df = df[df['amount'] > 0]
+        spending_df = df[df['amount'] < 0]
         if not spending_df.empty:
-            category_totals = spending_df.groupby('category')['amount'].sum().sort_values(ascending=False)
+            category_totals = (-spending_df['amount']).groupby(spending_df['category']).sum().sort_values(ascending=False)
             top_category = category_totals.index[0] if len(category_totals) > 0 else "Unknown"
             top_amount = category_totals.iloc[0] if len(category_totals) > 0 else 0
             
@@ -452,8 +452,8 @@ Rules:
         df['day_of_week'] = df['timestamp'].dt.day_name()
         df['is_weekend'] = df['timestamp'].dt.dayofweek >= 5
         
-        weekend_spending = df[(df['amount'] > 0) & (df['is_weekend'])]['amount'].sum()
-        weekday_spending = df[(df['amount'] > 0) & (~df['is_weekend'])]['amount'].sum()
+        weekend_spending = abs(df[(df['amount'] < 0) & (df['is_weekend'])]['amount'].sum())
+        weekday_spending = abs(df[(df['amount'] < 0) & (~df['is_weekend'])]['amount'].sum())
         
         yield f"\n\n**What I noticed about when you spend:**"
         yield f"\n• **Weekends**: £{weekend_spending:.0f} • **Weekdays**: £{weekday_spending:.0f}"
@@ -466,7 +466,7 @@ Rules:
             yield f"\n• Your spending is quite balanced between weekdays and weekends"
         
         # Analyze merchant patterns
-        top_merchants = df[df['amount'] > 0]['merchant'].value_counts().head(3)
+        top_merchants = df[df['amount'] < 0]['merchant'].value_counts().head(3)
         if not top_merchants.empty:
             yield f"\n• **Where you shop most**: {', '.join(top_merchants.index[:3])}"
     
@@ -475,17 +475,17 @@ Rules:
         chat_interface.add_progress_update("✨ Generating personalized insights...")
         
         # Calculate spending by category
-        spending_df = df[df['amount'] > 0]
-        category_totals = spending_df.groupby('category')['amount'].sum().sort_values(ascending=False)
+        spending_df = df[df['amount'] < 0]
+        category_totals = (-spending_df['amount']).groupby(spending_df['category']).sum().sort_values(ascending=False)
         
         # Get top categories with specific amounts
         top_categories = category_totals.head(3)
-        total_spent = spending_df['amount'].sum()
+        total_spent = abs(spending_df['amount'].sum())
         
         # Calculate subscription spending
         subscriptions = spending_df[spending_df['category'].isin(['Entertainment']) & 
                                   spending_df['merchant'].str.contains('SUBSCRIPTION|NETFLIX|SPOTIFY', case=False, na=False)]
-        subscription_total = subscriptions['amount'].sum() if not subscriptions.empty else 0
+        subscription_total = abs(subscriptions['amount'].sum()) if not subscriptions.empty else 0
         
         yield f"\n\n**Here's what stands out about your spending:**"
         
@@ -521,8 +521,8 @@ Rules:
         chat_interface.add_progress_update("📊 Generating final summary...")
         
         total_transactions = len(df)
-        total_spent = df[df['amount'] > 0]['amount'].sum()
-        total_income = abs(df[df['amount'] < 0]['amount'].sum())
+        total_spent = abs(df[df['amount'] < 0]['amount'].sum())
+        total_income = df[df['amount'] > 0]['amount'].sum()
         
         yield f"\n\n**✅ Analysis Complete!**"
         yield f"\n\nI've looked through your **{total_transactions} transactions** and here's what I found:"
@@ -545,8 +545,8 @@ Rules:
         yield "\n\n🔄 Using basic analysis..."
         
         total_transactions = len(df)
-        total_spent = df[df['amount'] > 0]['amount'].sum()
-        total_income = abs(df[df['amount'] < 0]['amount'].sum())
+        total_spent = abs(df[df['amount'] < 0]['amount'].sum())
+        total_income = df[df['amount'] > 0]['amount'].sum()
         
         yield f"\n\n**Basic Analysis Results:**"
         yield f"\n• **Total Transactions**: {total_transactions}"
