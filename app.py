@@ -1,16 +1,3 @@
-"""AI Spending Analyser - Prototype
-
-A professional, deployable Streamlit application foundation for financial analytics.
-
-- Wide layout, custom page config, and dark theme (via .streamlit/config.toml)
-- Polished header, sidebar, main content placeholders, and footer
-- Strong UX with responsive columns, containers, and expanders
-- Ready for Streamlit Cloud deployment
-
-Run locally:
-    streamlit run app.py
-"""
-
 from __future__ import annotations
 
 import os
@@ -25,7 +12,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Newly added utilities
 from utils.config import load_config
 from utils.logging import get_logger
 from utils.data_loader import (
@@ -36,12 +22,24 @@ from utils.data_loader import (
 from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface
 
-# Constants
+
+def get_accessible_colors():
+    """Return a palette of accessible colors that work well together and are colorblind-friendly."""
+    return {
+        'income': 'rgba(76, 175, 80, 0.7)',      # Accessible green
+        'spending': 'rgba(244, 67, 54, 0.7)',    # Accessible red
+        'balance': 'rgba(33, 150, 243, 1)',      # Accessible blue
+        'grid': 'rgba(128, 128, 128, 0.4)',     # Semi-transparent gray
+        'primary': '#4CAF50',                    # Matches theme primary
+        'secondary': 'rgba(255, 193, 7, 0.8)',  # Accessible amber
+        'tertiary': 'rgba(156, 39, 176, 0.7)',  # Accessible purple
+    }
+
 APP_NAME: str = "Spending Analyst"
-TAGLINE: str = "Your financial companion that gets it - no judgment, just insights that actually help"
+TAGLINE: str = "Your financial companion that gets it"
 DEFAULT_CURRENCY: str = "£"
 
-# Optional Gemini imports (SDK may expose either interface depending on version)
+# Handle different Gemini SDK versions
 try:  # Preferred modern client
     from google import genai as genai_client  # type: ignore
 except Exception:  # Fallback to legacy namespace
@@ -67,26 +65,19 @@ def init_session_state() -> None:
     """Initialize Streamlit session state variables used across the app."""
     from datetime import date
     defaults = {
-        "app_state": "initial",  # "initial" or "final" - controls UI visibility
-        "data_source": "Demo Data",  # Will be determined by file upload
+        "data_source": "Demo Data",
         "analysis_period": "Custom Date Range",
-        "date_range_type": "Custom Date Range",  # "Last 7 days", "Last 30 days", etc. or "Custom Date Range"
-        "start_date": date(2025, 7, 1),  # Default to demo data range start
-        "end_date": date(2025, 9, 30),   # Default to demo data range end
         "currency": DEFAULT_CURRENCY,
-        "df": None,  # placeholder for DataFrame when added later
-        "analysis": None,  # AnalysisResult placeholder
-        "ai_pdf_summary": None,  # Stores one-sentence summary 
-        # Chat interface state
-        "chat_interface": None,  # ChatInterface instance
-        "streaming_processor": None,  # StreamingGeminiProcessor instance
-        "demo_ai_processed": False,  # Flag to track if demo data has been AI processed
-        "processing_state": "idle",  # idle, uploading, streaming, complete
-        "start_pdf_processing": False,  # Flag to start PDF processing
-        "start_demo_processing": False,  # Flag to start demo processing
-        "is_processing": False,  # Guard to prevent duplicate runs
-        "last_filtered_start_date": None,  # Track last filtered start date
-        "last_filtered_end_date": None,  # Track last filtered end date
+        "df": None,
+        "df_raw": None,
+        "analysis": None,
+        "ai_pdf_summary": None,
+        "chat_interface": None,
+        "streaming_processor": None,
+        "demo_ai_processed": False,
+        "processing_state": "idle",  # idle, streaming, complete
+        "is_processing": False,
+        "stream_buffer": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -124,81 +115,57 @@ def render_header() -> None:
 
 
 def render_data_source_section() -> None:
-    """Render the data source selection section with upload and GO button."""
-    # Only show in initial state
-    if st.session_state.get("app_state") != "initial":
-        return
-        
-    with st.container(border=True):
-        st.markdown("### 📊 Choose Your Data Source")
-        st.caption("Use demo data to explore the features and see how the AI analysis works.")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # File uploader - COMMENTED OUT FOR DEMO ONLY
-            # uploaded_file = st.file_uploader(
-            #     "Upload PDF bank statement",
-            #     type=["pdf"],
-            #     accept_multiple_files=False,
-            #     help="Upload your bank statement PDF for AI-powered analysis. Leave empty to use demo data.",
-            #     key="main_uploader"
-            # )
+    """Render the data source selection section with demo data showcase."""
+    # Only show this section if we haven't started processing
+    if (st.session_state.get("processing_state") == "idle" and 
+        not st.session_state.get("demo_ai_processed")):
+        with st.container(border=True):
+            col1, col2 = st.columns([3, 1])
             
-            # Store uploaded file in session state
-            # st.session_state["uploaded_file"] = uploaded_file
+            with col1:
+                # st.markdown("### Demo Data Analysis")
+                st.markdown("###  📊 Experience AI-powered financial insights with a sample dataset")
+                st.caption("💡 **Tip:** This demo uses realistic UK bank statement data. All personal information has been anonymized for demonstration purposes.")
             
-            # Determine data source based on upload
-            # if uploaded_file is not None:
-            #     st.session_state["data_source"] = "Upload PDF"
-            #     st.success(f"📎 Ready to analyze: {uploaded_file.name}")
-            # else:
-            #     st.session_state["data_source"] = "Demo Data"
-            #     st.info("📊 Will use demo data for analysis")
-            
-            # FORCE DEMO DATA ONLY
-            st.session_state["data_source"] = "Demo Data"
-            st.info("📊 Using demo data for analysis")
-        
-        with col2:
-            st.markdown("**Ready to analyze?**")
-            
-            # GO button
-            if st.button("🚀 GO", type="primary", use_container_width=True, help="Start the AI analysis"):
-                # Only demo data processing available
-                if st.session_state.get("data_source") == "Demo Data":
-                    # Set flag to start demo processing
-                    st.session_state["start_demo_processing"] = True
-                    st.session_state["processing_state"] = "uploading"
-                    # Change app state to final
-                    st.session_state["app_state"] = "final"
-                else:
-                    st.error("Demo data processing only")
-            
-            # Show current status
-            st.caption("✅ Demo data ready for analysis")
-        
-        # Processing metrics are shown in the sidebar
+            with col2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button(
+                    "🚀 Start AI Analysis", 
+                    type="primary", 
+                    use_container_width=True,
+                    help="Begin analyzing the demo data with AI insights"
+                ):
+                    chat_interface = st.session_state.get("chat_interface")
+                    if chat_interface:
+                        chat_interface.clear_messages()
+                    
+                    st.session_state["demo_ai_processed"] = False
+                    st.session_state["is_processing"] = False
+                    st.session_state["stream_buffer"] = ""
+                    st.session_state["processing_state"] = "streaming"
+                    st.session_state["data_source"] = "Demo Data"
+                    
+                    df = load_demo_dataframe()
+                    st.session_state["df_raw"] = df
+                    st.session_state["df"] = df
+                    st.session_state["analysis"] = analyze_dataframe(df)
+                    
+                    st.rerun()
 
 
 def render_sidebar() -> None:
     """Render the sidebar controls for analysis period and view options."""
     with st.sidebar:
         st.markdown("### Settings")
-
-        st.caption("Configure your analysis period and view options.")
-
+        
         st.markdown("**Analysis Period**")
         date_range_type = st.selectbox(
             label="Time range type",
             options=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"],
-            index=["Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom Date Range"].index(
-                st.session_state.get("date_range_type", "Custom Date Range")
-            ),
+            index=4,
             key="date_range_type",
         )
         
-        # Calculate date range based on selection
         from datetime import timedelta
         today = date.today()
         
@@ -207,30 +174,19 @@ def render_sidebar() -> None:
             with col1:
                 start_date = st.date_input(
                     "Start Date",
-                    value=st.session_state.get("start_date") or date(2025, 7, 1),
+                    value=date(2025, 7, 1),
                     key="start_date"
                 )
             with col2:
                 end_date = st.date_input(
                     "End Date", 
-                    value=st.session_state.get("end_date") or date(2025, 9, 30),
+                    value=date(2025, 9, 30),
                     key="end_date"
                 )
             
-            # Validate date range
             if start_date and end_date and start_date > end_date:
                 st.error("Start date must be before end date")
-            else:
-                # Check if dates have changed and trigger rerun
-                old_start = st.session_state.get("start_date")
-                old_end = st.session_state.get("end_date")
-                if (old_start != start_date or old_end != end_date):
-                    st.session_state["start_date"] = start_date
-                    st.session_state["end_date"] = end_date
-                    # Trigger rerun to reload data with new filter
-                    st.rerun()
         else:
-            # Calculate date range for preset options
             if date_range_type == "Last 7 days":
                 start_date = today - timedelta(days=6)
                 end_date = today
@@ -245,49 +201,25 @@ def render_sidebar() -> None:
                 end_date = today
             
             st.caption(f"Selected: {start_date} to {end_date}")
+            st.session_state["start_date"] = start_date
+            st.session_state["end_date"] = end_date
         
-        # Store the calculated dates in session state (only if not custom range to avoid conflicts)
-        if date_range_type != "Custom Date Range":
-            if (st.session_state.get("start_date") != start_date or 
-                st.session_state.get("end_date") != end_date):
-                st.session_state["start_date"] = start_date
-                st.session_state["end_date"] = end_date
-                # Trigger rerun to reload data with new filter
-                st.rerun()
-        
-        # Show reset button in final state
-        if st.session_state.get("app_state") == "final":
-            st.markdown("---")
-            st.markdown("### Reset")
-            if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
-                # Clear all data and reset state
-                st.session_state["df"] = None
-                st.session_state["analysis"] = None
-                st.session_state["ai_pdf_summary"] = None
-                st.session_state["demo_ai_processed"] = False
-                st.session_state["processing_state"] = "idle"
-                st.session_state["uploaded_file"] = None
-                st.session_state["data_source"] = "Demo Data"
-                st.session_state["start_pdf_processing"] = False
-                st.session_state["start_demo_processing"] = False
-                st.session_state["is_processing"] = False
-                st.session_state["last_filtered_start_date"] = None
-                st.session_state["last_filtered_end_date"] = None
-                # Reset app state to initial
-                st.session_state["app_state"] = "initial"
-                
-                # Clear chat messages
-                chat_interface = st.session_state.get("chat_interface")
-                if chat_interface:
-                    chat_interface.clear_messages()
-                
-                st.rerun()
-
-        # Show chat interface metrics if available
-        chat_interface = st.session_state.get("chat_interface")
-        if chat_interface and st.session_state.get("processing_state") in ["streaming", "complete"]:
-            st.markdown("---")
-            chat_interface.render_sidebar_metrics()
+        st.markdown("---")
+        st.markdown("### Reset")
+        if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
+            for key in ["df", "df_raw", "analysis", "ai_pdf_summary", "demo_ai_processed", 
+                       "is_processing", "stream_buffer"]:
+                if key in st.session_state:
+                    st.session_state[key] = None if key not in ["demo_ai_processed", "is_processing"] else False
+            
+            st.session_state["processing_state"] = "idle"
+            st.session_state["stream_buffer"] = ""
+            
+            chat_interface = st.session_state.get("chat_interface")
+            if chat_interface:
+                chat_interface.clear_messages()
+            
+            st.rerun()
 
 
 def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
@@ -309,244 +241,236 @@ def render_metrics_row(total_spent: float | None = None, total_income: float | N
         else:
             st.metric(label="Total Net", value=f"{DEFAULT_CURRENCY}{total_net:,.2f}")
 
-def render_visualizations_section() -> None:
-    """Render the visualizations placeholder section with a minimal chart."""
-    # Only show visualizations in final state
-    if st.session_state.get("app_state") != "final":
-        return
-        
-    with st.container(border=True):
-        st.markdown("### Visualizations 🎯")
-        
-        try:
-            df = st.session_state.get("df")
-
-            if df is None or df.empty:
-                st.info("Visualization will appear here once data is available.")
-                return
-
-            # Overview metrics section - show when data is available
-            st.markdown("#### Overview 📊")
-            
-            # Show current date range
-            start_date, end_date = get_current_date_range()
-            if start_date and end_date:
-                st.caption(f"Analysis period: {start_date} to {end_date}")
-
-            analysis = st.session_state.get("analysis")
-            if analysis is not None:
-                render_metrics_row(
-                    total_spent=analysis.total_spent,
-                    total_income=analysis.total_income,
-                    total_net=analysis.total_net,
-                )
-            else:
-                render_metrics_row()
-            
-            st.markdown("---")  # Separator between overview and charts
-
-            # Daily Income vs Spending with Balance Trend Overlay
-            df_bal = df.copy()
-            df_bal["Day"] = df_bal["timestamp"].dt.date
-            
-            # Calculate daily income and spending based on amount sign
-            # In demo data: negative amounts = income, positive amounts = spending
-            daily_income = df_bal[df_bal["amount"] < 0].groupby("Day")["amount"].sum().reset_index(name="Income")
-            daily_income["Income"] = -daily_income["Income"]  # Convert to positive for display
-            
-            daily_spending = df_bal[df_bal["amount"] > 0].groupby("Day")["amount"].sum().reset_index(name="Spending")
-            
-            # Merge income and spending data
-            daily_bal = pd.merge(daily_income, daily_spending, on="Day", how="outer").fillna(0)
-            
-            # Get actual balance data from Balance_After column
-            if "balance_after" in df_bal.columns:
-                # Take the last transaction balance for each day
-                daily_balance = df_bal.groupby("Day")["balance_after"].last().reset_index()
-                daily_balance.columns = ["Day", "Balance"]
-                
-                # Merge balance with income/spending data
-                daily_bal = pd.merge(daily_bal, daily_balance, on="Day", how="outer").fillna(0)
-            else:
-                # Fallback: calculate running balance if balance_after not available
-                daily_bal["Daily_Net"] = daily_bal["Income"] - daily_bal["Spending"]
-                daily_bal["Balance"] = daily_bal["Daily_Net"].cumsum()
-            
-            # Create the chart with dual y-axes
-            # Create subplot with secondary y-axis
-            fig = make_subplots(
-                rows=1, cols=1,
-                specs=[[{"secondary_y": True}]],
-                subplot_titles=("Daily Income vs Spending with Balance Trend",)
-            )
-            
-            # Add bars for income and spending
-            fig.add_trace(
-                go.Bar(x=daily_bal["Day"], y=daily_bal["Income"], 
-                       name="Income", marker_color="green", opacity=0.7,
-                       hovertemplate="<b>%{x}</b><br>Income: £%{y:,.0f}<extra></extra>"),
-                secondary_y=False,
-            )
-            
-            fig.add_trace(
-                go.Bar(x=daily_bal["Day"], y=daily_bal["Spending"], 
-                       name="Spending", marker_color="red", opacity=0.7,
-                       hovertemplate="<b>%{x}</b><br>Spending: £%{y:,.0f}<extra></extra>"),
-                secondary_y=False,
-            )
-            
-            # Ensure we have only one balance value per day
-            daily_bal_unique = daily_bal.drop_duplicates(subset=['Day'], keep='last').sort_values('Day')
-            
-            # Add line for actual balance on secondary y-axis
-            fig.add_trace(
-                go.Scatter(x=daily_bal_unique["Day"], y=daily_bal_unique["Balance"], 
-                          name="Account Balance", mode="lines+markers", 
-                          line=dict(color="darkblue", width=3),
-                          marker=dict(size=5, color="darkblue", symbol="circle"),
-                          hovertemplate="<b>%{x}</b><br>Balance: £%{y:,.0f}<extra></extra>"),
-                secondary_y=True,
-            )
-            
-            # Set x-axis title
-            fig.update_xaxes(title_text="Date")
-            
-            # Set y-axes titles
-            fig.update_yaxes(title_text="Amount (£)", secondary_y=False)
-            fig.update_yaxes(title_text="Balance (£)", secondary_y=True)
-            
-            # Update layout
-            fig.update_layout(
-                height=450,
-                margin=dict(l=20, r=20, t=60, b=20),
-                barmode="group",
-                hovermode="x unified",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                showlegend=True
-            )
-            
-            # Style the axes
-            fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
-            fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="lightgray", secondary_y=False)
-            fig.update_yaxes(showgrid=False, secondary_y=True)  # Don't show grid on right axis to avoid clutter
-            
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Category Spend Breakdown with controls
-            st.markdown("#### Category Spend Breakdown")
-            
-            spend_df = df[df["amount"] > 0].copy()
-            if not spend_df.empty:
-                spend_df["Spend"] = spend_df["amount"]
-                cat_totals = (
-                    spend_df.groupby(spend_df["category"].fillna("Uncategorized"))["Spend"].sum().sort_values(ascending=False)
-                )
-                cat_df = cat_totals.reset_index()
-                cat_df.columns = ["Category", "Spend"]
-                
-                # Layout with metrics on left and chart on right
-                left_col, right_col = st.columns([1, 2])
-                
-                with left_col:
-                    st.markdown("**Category Statistics**")
-                    
-                    # Total Categories metric
-                    st.metric(
-                        label="Total Categories", 
-                        value=len(cat_df),
-                        help="Number of different spending categories"
-                    )
-                    
-                    # Top Category metric
-                    if len(cat_df) > 0:
-                        top_category = cat_df.iloc[0]
-                        st.metric(
-                            label="Top Category", 
-                            value=top_category["Category"],
-                            delta=f"{DEFAULT_CURRENCY}{top_category['Spend']:,.0f}",
-                            help="Category with highest spending"
-                        )
-                        
-                        # Top Category percentage
-                        top_spend = cat_df.iloc[0]["Spend"]
-                        total_spend = cat_df["Spend"].sum()
-                        top_percentage = (top_spend / total_spend) * 100
-                        st.metric(
-                            label="Top Category %", 
-                            value=f"{top_percentage:.1f}%",
-                            help="Percentage of total spending in top category"
-                        )
-                
-                with right_col:
-                    cat_fig = px.pie(cat_df, names="Category", values="Spend", title="Share of Spending by Category", hole=0.4)
-                    cat_fig.update_traces(textposition="inside", textinfo="percent+label")
-                    cat_fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
-                    st.plotly_chart(cat_fig, use_container_width=True)
-            else:
-                st.info("No spending transactions to build a category breakdown.")
-                
-        except Exception as exc:
-            st.info("Visualization will appear here once data is available.")
-            st.caption(f"Renderer note: {exc}")
-
-
-
 
 def render_chat_section() -> None:
-    """Render the chat interface section for data analysis."""
-    # Only show chat in final state
-    if st.session_state.get("app_state") != "final":
-        return
+    """Render the chat interface section with TRUE streaming."""
+    if st.session_state.get("processing_state") != "idle":
+        chat_interface = st.session_state.get("chat_interface")
+        streaming_processor = st.session_state.get("streaming_processor")
         
-    chat_interface = st.session_state.get("chat_interface")
-    if chat_interface and st.session_state.get("data_source") == "Demo Data":
+        if chat_interface and streaming_processor:
+            with st.container(border=True):
+                
+                if (st.session_state.get("processing_state") == "streaming" and 
+                    not st.session_state.get("is_processing")):
+                    
+                    st.session_state["is_processing"] = True
+                    df = st.session_state.get("df_raw")
+                    
+                    if df is not None:
+                        chat_placeholder = st.empty()
+                        
+                        # Show initial demo analysis messages immediately
+                        chat_interface.start_demo_analysis()
+                        with chat_placeholder.container():
+                            chat_interface.render_chat_container()
+                        
+                        try:
+                            # Stream chunks directly as they arrive (no pre-buffer)
+                            full_text = ""
+                            for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
+                                full_text += chunk
+                                chat_interface.update_assistant_message(chunk, append=True)
+                                
+                                with chat_placeholder.container():
+                                    chat_interface.render_chat_container()
+                                
+                                # Control streaming speed based on chunk size
+                                if len(chunk) < 10:
+                                    time.sleep(0.03)
+                                elif len(chunk) < 50:
+                                    time.sleep(0.05)
+                                else:
+                                    time.sleep(0.1)
+                            
+                            st.session_state["ai_pdf_summary"] = full_text
+                            st.session_state["demo_ai_processed"] = True
+                            st.session_state["processing_state"] = "complete"
+                            chat_interface.complete_processing(df)
+                            
+                            with chat_placeholder.container():
+                                chat_interface.render_chat_container()
+                            
+                        except Exception as e:
+                            st.error(f"Streaming failed: {str(e)}")
+                            chat_interface.add_message("system", f"⌛ Analysis failed: {str(e)}")
+                        finally:
+                            st.session_state["is_processing"] = False
+                
+                else:
+                    chat_interface.render_chat_container()
+
+
+def render_visualizations_section() -> None:
+    """Render the visualizations section."""
+    if st.session_state.get("processing_state") != "idle":
         with st.container(border=True):
-            data_source = st.session_state.get("data_source")
-            st.markdown("### 💬 Financial Analysis Chat")
+            st.markdown("### Visualizations 🎯")
             
-            # Handle processing flags - PDF PROCESSING COMMENTED OUT
-            # if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
-            #     st.session_state["start_pdf_processing"] = False
-            #     uploaded_file = st.session_state.get("uploaded_file")
-            #     if uploaded_file is not None:
-            #         st.session_state["is_processing"] = True
-            #         st.session_state["processing_state"] = "streaming"
-            #         process_pdf_with_streaming(uploaded_file)
+            df_raw = st.session_state.get("df_raw")
+            df = df_raw if df_raw is not None else st.session_state.get("df")
             
-            if st.session_state.get("start_demo_processing") and not st.session_state.get("is_processing"):
-                st.session_state["start_demo_processing"] = False
-                st.session_state["is_processing"] = True
-                st.session_state["processing_state"] = "streaming"
-                process_demo_data_with_ai()
+            if df is None or df.empty:
+                if st.session_state.get("processing_state") == "streaming":
+                    st.info("📊 Visualizations will appear here once analysis is complete...")
+                else:
+                    st.info("No data available for visualization.")
+                return
             
-            # Only render chat container when not processing AND we haven't completed processing yet
-            is_processing = st.session_state.get("is_processing", False)
-            has_completed_processing = st.session_state.get("demo_ai_processed", False)
-            
-            if not is_processing and not has_completed_processing:
-                print(f"🔍 [DEBUG] Rendering chat container in main section (initial state)")
-                chat_interface.render_chat_container()
-            else:
-                print(f"🔍 [DEBUG] Skipping main section render (processing: {is_processing}, completed: {has_completed_processing})")
-            
-            # Show download section if processing is complete and we have data - COMMENTED OUT FOR DEMO ONLY
-            # if st.session_state.get("data_source") == "Upload PDF":
-            #     chat_interface.render_download_section()
+            try:
+                
+                start_date, end_date = get_current_date_range()
+                if start_date and end_date:
+                    st.caption(f"Analysis period: {start_date} to {end_date}")
+                    df = filter_dataframe_by_date_range(df, start_date, end_date)
 
+                if df is not None and not df.empty:
+                    local_analysis = analyze_dataframe(df)
+                    render_metrics_row(
+                        total_spent=local_analysis.total_spent,
+                        total_income=local_analysis.total_income,
+                        total_net=local_analysis.total_net,
+                    )
+                else:
+                    render_metrics_row()
 
-def render_footer() -> None:
-    """Render a subtle footer."""
-    st.divider()
-    st.caption(
-        "Built with Streamlit."
-    )
+                df_bal = df.copy()
+                df_bal["Day"] = df_bal["timestamp"].dt.date
+                
+                daily_income = df_bal[df_bal["amount"] > 0].groupby("Day")["amount"].sum().reset_index(name="Income")
+                daily_spending = df_bal[df_bal["amount"] < 0].groupby("Day")["amount"].sum().reset_index(name="Spending")
+                daily_spending["Spending"] = -daily_spending["Spending"]
+                
+                daily_bal = pd.merge(daily_income, daily_spending, on="Day", how="outer").fillna(0)
+                
+                if "balance_after" in df_bal.columns:
+                    daily_balance = df_bal.groupby("Day")["balance_after"].last().reset_index()
+                    daily_balance.columns = ["Day", "Balance"]
+                    daily_bal = pd.merge(daily_bal, daily_balance, on="Day", how="outer").fillna(0)
+                else:
+                    daily_bal["Daily_Net"] = daily_bal["Income"] - daily_bal["Spending"]
+                    daily_bal["Balance"] = daily_bal["Daily_Net"].cumsum()
+                
+                colors = get_accessible_colors()
+                
+                fig = make_subplots(
+                    rows=1, cols=1,
+                    specs=[[{"secondary_y": True}]],
+                    subplot_titles=("Daily Income vs Spending with Balance Trend",)
+                )
+                
+                fig.add_trace(
+                    go.Bar(x=daily_bal["Day"], y=daily_bal["Income"], 
+                           name="Income", marker_color=colors['income'],
+                           hovertemplate="<b>%{x}</b><br>Income: £%{y:,.0f}<extra></extra>"),
+                    secondary_y=False,
+                )
+                
+                fig.add_trace(
+                    go.Bar(x=daily_bal["Day"], y=daily_bal["Spending"], 
+                           name="Spending", marker_color=colors['spending'],
+                           hovertemplate="<b>%{x}</b><br>Spending: £%{y:,.0f}<extra></extra>"),
+                    secondary_y=False,
+                )
+                
+                daily_bal_unique = daily_bal.drop_duplicates(subset=['Day'], keep='last').sort_values('Day')
+                
+                fig.add_trace(
+                    go.Scatter(x=daily_bal_unique["Day"], y=daily_bal_unique["Balance"], 
+                              name="Account Balance", mode="lines+markers", 
+                              line=dict(color=colors['balance'], width=3),
+                              marker=dict(size=5, color=colors['balance'], symbol="circle"),
+                              hovertemplate="<b>%{x}</b><br>Balance: £%{y:,.0f}<extra></extra>"),
+                    secondary_y=True,
+                )
+                
+                fig.update_xaxes(title_text="Date")
+                fig.update_yaxes(title_text="Amount (£)", secondary_y=False)
+                fig.update_yaxes(title_text="Balance (£)", secondary_y=True)
+                
+                fig.update_layout(
+                    height=450,
+                    margin=dict(l=20, r=20, t=60, b=20),
+                    barmode="group",
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    showlegend=True
+                )
+                
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor=colors['grid'])
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=colors['grid'], secondary_y=False)
+                fig.update_yaxes(showgrid=False, secondary_y=True)
+                
+                st.plotly_chart(fig, use_container_width=True)
 
-
-def render_empty_state() -> None:
-    """Render the empty state message guiding users to load or upload data."""
-    pass
+                st.markdown("#### Category Spend Breakdown")
+                
+                spend_df = df[df["amount"] < 0].copy()
+                if not spend_df.empty:
+                    spend_df["Spend"] = -spend_df["amount"]
+                    cat_totals = (
+                        spend_df.groupby(spend_df["category"].fillna("Uncategorized"))["Spend"]
+                            .sum().sort_values(ascending=False)
+                    )
+                    cat_df = cat_totals.reset_index()
+                    cat_df.columns = ["Category", "Spend"]
+                    
+                    left_col, right_col = st.columns([1, 2])
+                    
+                    with left_col:
+                        st.markdown("**Category Statistics**")
+                        
+                        st.metric(
+                            label="Total Categories", 
+                            value=len(cat_df),
+                            help="Number of different spending categories"
+                        )
+                        
+                        if len(cat_df) > 0:
+                            top_category = cat_df.iloc[0]
+                            st.metric(
+                                label="Top Category", 
+                                value=top_category["Category"],
+                                delta=f"£{top_category['Spend']:,.0f}",
+                                help="Category with highest spending"
+                            )
+                            
+                            top_spend = cat_df.iloc[0]["Spend"]
+                            total_spend = cat_df["Spend"].sum()
+                            top_percentage = (top_spend / total_spend) * 100
+                            st.metric(
+                                label="Top Category %", 
+                                value=f"{top_percentage:.1f}%",
+                                help="Percentage of total spending in top category"
+                            )
+                    
+                    with right_col:
+                        # Create accessible color palette for pie chart
+                        accessible_palette = [
+                            colors['primary'], colors['secondary'], colors['tertiary'],
+                            colors['income'], colors['spending'], colors['balance'],
+                            'rgba(255, 152, 0, 0.8)',  # Orange
+                            'rgba(0, 150, 136, 0.8)',  # Teal
+                            'rgba(121, 85, 72, 0.8)',  # Brown
+                            'rgba(63, 81, 181, 0.8)'   # Indigo
+                        ]
+                        
+                        cat_fig = px.pie(cat_df, names="Category", values="Spend", 
+                                        title="Share of Spending by Category", hole=0.4,
+                                        color_discrete_sequence=accessible_palette)
+                        cat_fig.update_traces(textposition="inside", textinfo="percent+label")
+                        cat_fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
+                        st.plotly_chart(cat_fig, use_container_width=True)
+                else:
+                    st.info("No spending transactions to build a category breakdown.")
+                    
+            except Exception as exc:
+                if st.session_state.get("processing_state") == "streaming":
+                    st.info("📊 Processing data for visualizations...")
+                else:
+                    st.error(f"Error rendering visualizations: {exc}")
 
 
 def filter_dataframe_by_date_range(df: pd.DataFrame, start_date: date, end_date: date) -> pd.DataFrame:
@@ -554,11 +478,9 @@ def filter_dataframe_by_date_range(df: pd.DataFrame, start_date: date, end_date:
     if df is None or df.empty:
         return df
     
-    # Convert dates to datetime for comparison
     start_datetime = datetime.combine(start_date, datetime.min.time())
     end_datetime = datetime.combine(end_date, datetime.max.time())
     
-    # Filter the dataframe
     filtered_df = df[(df['timestamp'] >= start_datetime) & (df['timestamp'] <= end_datetime)]
     return filtered_df
 
@@ -567,204 +489,21 @@ def get_current_date_range():
     """Get the current date range from session state or widgets."""
     date_range_type = st.session_state.get("date_range_type", "Custom Date Range")
     
-    if date_range_type == "Custom Date Range":
-        # For custom date range, get from session state (set by the widgets)
-        return st.session_state.get("start_date"), st.session_state.get("end_date")
-    else:
-        # For preset ranges, get from session state
-        return st.session_state.get("start_date"), st.session_state.get("end_date")
+    start_date = st.session_state.get("start_date", date(2025, 7, 1))
+    end_date = st.session_state.get("end_date", date(2025, 9, 30))
+    return start_date, end_date
 
 
-# PDF PROCESSING FUNCTION COMMENTED OUT FOR DEMO ONLY
-# def process_pdf_with_streaming(pdf_file) -> None:
-#     """Process PDF with streaming chat interface."""
-#     # Check if we're already processing or have processed this file
-#     if st.session_state.get("is_processing", False):
-#         return
-#     
-#     chat_interface = st.session_state.get("chat_interface")
-#     streaming_processor = st.session_state.get("streaming_processor")
-#     
-#     if not chat_interface or not streaming_processor:
-#         st.error("Chat interface not properly initialized")
-#         return
-#     
-#     # Start PDF processing
-#     chat_interface.start_pdf_processing(pdf_file)
-#     
-#     # Create a placeholder for streaming content
-#     message_placeholder = st.empty()
-#     
-#     # Process PDF with streaming
-#     try:
-#         full_response = ""
-#         print(f"🔍 [DEBUG] Starting PDF streaming processing...")
-#         for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
-#             full_response += chunk
-#             print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
-#             # Add chunk to chat interface for real-time display
-#             chat_interface.update_assistant_message(chunk, append=True)
-#             # Update the message in real-time using placeholder
-#             print(f"🔍 [DEBUG] Rendering chat container in PDF streaming placeholder")
-#             with message_placeholder.container():
-#                 chat_interface.render_chat_container()
-#             time.sleep(0.1)  # Small delay for smooth streaming
-#         
-#         print(f"🔍 [DEBUG] Streaming complete. Full response length: {len(full_response)}")
-#         print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
-#         
-#         # Complete processing
-#         extracted_data = chat_interface.get_extracted_data()
-#         if extracted_data is not None:
-#             # Convert to our internal format
-#             df = convert_gemini_csv_to_internal_format(extracted_data)
-#             
-#             # Apply date range filter
-#             start_date, end_date = get_current_date_range()
-#             if start_date and end_date:
-#                 df = filter_dataframe_by_date_range(df, start_date, end_date)
-#             
-#             st.session_state["df"] = df
-#             st.session_state["analysis"] = analyze_dataframe(df)
-#             
-#             # Set AI summary
-#             st.session_state["ai_pdf_summary"] = full_response
-#         
-#         chat_interface.complete_processing(extracted_data)
-#         
-#     except Exception as e:
-#         st.error(f"Streaming processing failed: {str(e)}")
-#         chat_interface.add_message("system", f"❌ Processing failed: {str(e)}")
-#     finally:
-#         # Always clear processing guard at end
-#         st.session_state["is_processing"] = False
-
-
-def process_demo_data_with_ai() -> None:
-    """Process demo data with AI analysis using streaming chat interface."""
-    # Check if demo data has already been processed
-    if st.session_state.get("demo_ai_processed", False):
-        return
-    
-    chat_interface = st.session_state.get("chat_interface")
-    streaming_processor = st.session_state.get("streaming_processor")
-    
-    if not chat_interface or not streaming_processor:
-        st.error("Chat interface not properly initialized")
-        return
-    
-    # Load demo data
-    df = load_demo_dataframe()
-    
-    # Start AI analysis for demo data
-    chat_interface.start_demo_analysis()
-    
-    # Create a placeholder for streaming content
-    message_placeholder = st.empty()
-    
-    # Process demo data with AI analysis
-    try:
-        full_response = ""
-        print(f"🔍 [DEBUG] Starting demo data streaming processing...")
-        for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
-            full_response += chunk
-            print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
-            # Add chunk to chat interface for real-time display
-            chat_interface.update_assistant_message(chunk, append=True)
-            # Update the message in real-time using placeholder
-            with message_placeholder.container():
-                chat_interface.render_chat_container()
-            time.sleep(0.1)  # Small delay for smooth streaming
-        
-        print(f"🔍 [DEBUG] Demo streaming complete. Full response length: {len(full_response)}")
-        print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
-        
-        # Apply date range filter
-        start_date, end_date = get_current_date_range()
-        if start_date and end_date:
-            df = filter_dataframe_by_date_range(df, start_date, end_date)
-        
-        st.session_state["df"] = df
-        st.session_state["analysis"] = analyze_dataframe(df)
-        
-        # Set AI summary
-        st.session_state["ai_pdf_summary"] = full_response
-        
-        # Mark demo data as processed
-        st.session_state["demo_ai_processed"] = True
-        print(f"🔍 [DEBUG] Demo processing complete, setting demo_ai_processed=True")
-        
-        chat_interface.complete_processing(df)
-        print(f"🔍 [DEBUG] Chat interface complete_processing called")
-        
-    except Exception as e:
-        st.error(f"Demo data AI analysis failed: {str(e)}")
-        chat_interface.add_message("system", f"❌ Analysis failed: {str(e)}")
-    finally:
-        # Always clear processing guard at end
-        print(f"🔍 [DEBUG] Demo processing finally block - setting is_processing=False")
-        st.session_state["is_processing"] = False
-
-
-# PDF CONVERSION FUNCTION COMMENTED OUT FOR DEMO ONLY
-# def convert_gemini_csv_to_internal_format(gemini_df) -> pd.DataFrame:
-#     """Convert Gemini CSV output to internal DataFrame format."""
-#     df = gemini_df.copy()
-#     
-#     # Rename columns to internal format
-#     df = df.rename(columns={
-#         "Transaction_Date": "timestamp",
-#         "Amount": "amount", 
-#         "Merchant_Category": "category",
-#         "Balance_After": "balance_after",
-#         "Description": "description",
-#     })
-#     
-#     # Convert timestamp and ensure numeric types
-#     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-#     df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-#     df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
-#     
-#     # Add required columns
-#     df["currency"] = DEFAULT_CURRENCY
-#     df["merchant"] = df["description"].astype(str)
-#     df["category"] = df["category"].astype(str)
-#     
-#     # Clean up and validate
-#     df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
-#     
-#     return df
-
-
-def maybe_load_processed_data() -> None:
-    """Load data if it has already been processed."""
-    # Only load data if we have it and it's not currently being processed
-    if (st.session_state.get("df") is not None and 
-        st.session_state.get("processing_state") not in ["streaming", "uploading"]):
-        
-        # Check if we need to re-apply date filtering
-        start_date, end_date = get_current_date_range()
-        if start_date and end_date:
-            df = st.session_state.get("df")
-            if df is not None:
-                # Only re-filter if the date range has actually changed
-                current_start = st.session_state.get("last_filtered_start_date")
-                current_end = st.session_state.get("last_filtered_end_date")
-                
-                if (current_start != start_date or current_end != end_date):
-                    filtered_df = filter_dataframe_by_date_range(df, start_date, end_date)
-                    st.session_state["df"] = filtered_df
-                    st.session_state["analysis"] = analyze_dataframe(filtered_df)
-                    # Remember the dates we filtered with
-                    st.session_state["last_filtered_start_date"] = start_date
-                    st.session_state["last_filtered_end_date"] = end_date
+def render_footer() -> None:
+    """Render a subtle footer."""
+    st.divider()
+    st.caption("Built with Streamlit.")
 
 
 def main() -> None:
     """Application entry point."""
     set_page_config()
 
-    # Init
     config = load_config()
     logger = get_logger()
     init_session_state()
@@ -772,31 +511,9 @@ def main() -> None:
 
     render_header()
     render_sidebar()
-
-    # Data source selection section
-    data_source_area = st.container()
-    with data_source_area:
-        render_data_source_section()
-
-    # Data layer - load data if already processed
-    maybe_load_processed_data()
-
-    # Content areas in responsive layout
-    # Chat section for analysis
-    chat_area = st.container()
-    with chat_area:
-        render_chat_section()
-
-    viz_area = st.container()
-    with viz_area:
-        render_visualizations_section()
-
-    # AI insights are now part of the chat flow, not a separate section
-
-    # Empty state prompt
-    render_empty_state()
-
-    # Footer
+    render_data_source_section()
+    render_chat_section()
+    render_visualizations_section()
     render_footer()
 
 

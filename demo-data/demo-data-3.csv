@@ -1,0 +1,76 @@
+Transaction_Date,Posting_Date,Description,Transaction_Type,Merchant_Category,Amount,Location,Balance_After
+2025-09-01,2025-09-01,Tuition Fee Instalment,Direct Debit,Education,-1500.00,"Manchester, UK",2500.00
+2025-09-02,2025-09-03,Tesco Express Groceries,Card Payment,Groceries,-32.50,"Manchester, UK",2467.50
+2025-09-03,2025-09-04,Parental Support,Bank Giro Credit,Income,100.00,UK,2567.50
+2025-09-04,2025-09-05,The Font Bar,Card Payment,Entertainment,-45.00,"Manchester, UK",2522.50
+2025-09-05,2025-09-06,Amazon - Textbooks,Card Payment,Education,-85.00,Online,2437.50
+2025-09-06,2025-09-07,Fifth Nightclub,Card Payment,Entertainment,-60.00,"Manchester, UK",2377.50
+2025-09-08,2025-09-09,Costa Coffee,Card Payment,Dining,-8.50,"Manchester, UK",2369.00
+2025-09-10,2025-09-11,Parental Support,Bank Giro Credit,Income,100.00,UK,2469.00
+2025-09-11,2025-09-12,Sainsbury’s Groceries,Card Payment,Groceries,-40.00,"Manchester, UK",2429.00
+2025-09-12,2025-09-13,Revolution Bar,Card Payment,Entertainment,-55.00,"Manchester, UK",2374.00
+2025-09-13,2025-09-14,Uber - Night Out,Card Payment,Transportation,-12.00,"Manchester, UK",2362.00
+2025-09-15,2025-09-16,Spotify Subscription,Direct Debit,Entertainment,-9.99,Online,2352.01
+2025-09-17,2025-09-18,Parental Support,Bank Giro Credit,Income,100.00,UK,2452.01
+2025-09-18,2025-09-19,Greggs,Card Payment,Dining,-7.80,"Manchester, UK",2444.21
+2025-09-19,2025-09-20,Factory Nightclub,Card Payment,Entertainment,-65.00,"Manchester, UK",2379.21
+2025-09-20,2025-09-21,Train Ticket to London,Card Payment,Transportation,-45.00,"Manchester, UK",2334.21
+2025-09-24,2025-09-25,Parental Support,Bank Giro Credit,Income,100.00,UK,2434.21
+2025-09-25,2025-09-26,Aldi Groceries,Card Payment,Groceries,-38.50,"Manchester, UK",2395.71
+2025-09-26,2025-09-27,Tiger Tiger Club,Card Payment,Entertainment,-50.00,"Manchester, UK",2345.71
+2025-09-27,2025-09-28,Domino’s Pizza,Card Payment,Dining,-22.00,"Manchester, UK",2323.71
+2025-10-01,2025-10-02,Student Accommodation Rent,Direct Debit,Housing,-600.00,"Manchester, UK",1723.71
+2025-10-02,2025-10-03,Parental Support,Bank Giro Credit,Income,100.00,UK,1823.71
+2025-10-03,2025-10-04,The Deaf Institute,Card Payment,Entertainment,-48.00,"Manchester, UK",1775.71
+2025-10-05,2025-10-06,Lidl Groceries,Card Payment,Groceries,-35.00,"Manchester, UK",1740.71
+2025-10-07,2025-10-08,Parental Support,Bank Giro Credit,Income,100.00,UK,1840.71
+2025-10-08,2025-10-09,Starbucks,Card Payment,Dining,-9.20,"Manchester, UK",1831.51
+2025-10-10,2025-10-11,42’s Nightclub,Card Payment,Entertainment,-62.00,"Manchester, UK",1769.51
+2025-10-12,2025-10-13,Uber - Night Out,Card Payment,Transportation,-15.00,"Manchester, UK",1754.51
+2025-10-14,2025-10-15,Parental Support,Bank Giro Credit,Income,100.00,UK,1854.51
+2025-10-15,2025-10-16,Tesco Express Groceries,Card Payment,Groceries,-30.00,"Manchester, UK",1824.51
+2025-10-16,2025-10-17,Revolution Bar,Card Payment,Entertainment,-55.00,"Manchester, UK",1769.51
+2025-10-18,2025-10-19,Amazon - Stationery,Card Payment,Education,-25.00,Online,1744.51
+2025-10-21,2025-10-22,Parental Support,Bank Giro Credit,Income,100.00,UK,1844.51
+2025-10-22,2025-10-23,Sainsbury’s Groceries,Card Payment,Groceries,-42.00,"Manchester, UK",1802.51
+2025-10-23,2025-10-24,Fifth Nightclub,Card Payment,Entertainment,-60.00,"Manchester, UK",1742.51
+2025-10-25,2025-10-26,Bus Pass,Card Payment,Transportation,-20.00,"Manchester, UK",1722.51
+2025-10-28,2025-10-29,Parental Support,Bank Giro Credit,Income,100.00,UK,1822.51
+2025-10-29,2025-10-30,Greggs,Card Payment,Dining,-6.50,"Manchester, UK",1816.01
+2025-10-30,2025-10-31,The Font Bar,Card Payment,Entertainment,-50.00,"Manchester, UK",1766.01
+2025-11-01,2025-11-02,Student Accommodation Rent,Direct Debit,Housing,-600.00,"Manchester, UK",1166.01
+2025-11-02,2025-11-03,Parental Support,Bank Giro Credit,Income,100.00,UK,1266.01
+2025-11-03,2025-11-04,Tesco Express Groceries,Card Payment,Groceries,-35.00,"Manchester, UK",1231.01
+2025-11-05,2025-11-06,Factory Nightclub,Card Payment,Entertainment,-65.00,"Manchester, UK",1166.01
+2025-11-07,2025-11-08,Costa Coffee,Card Payment,Dining,-8.00,"Manchester, UK",1158.01
+2025-11-10,2025-11-11,Parental Support,Bank Giro Credit,Income,100.00,UK,1258.01
+2025-11-11,2025-11-12,Aldi Groceries,Card Payment,Groceries,-40.00,"Manchester, UK",1218.01
+2025-11-12,2025-11-13,Revolution Bar,Card Payment,Entertainment,-55.00,"Manchester, UK",1163.01
+2025-11-14,2025-11-15,Uber - Night Out,Card Payment,Transportation,-13.00,"Manchester, UK",1150.01
+2025-11-17,2025-11-18,Parental Support,Bank Giro Credit,Income,100.00,UK,1250.01
+2025-11-18,2025-11-19,Domino’s Pizza,Card Payment,Dining,-20.00,"Manchester, UK",1230.01
+2025-11-19,2025-11-20,Tiger Tiger Club,Card Payment,Entertainment,-50.00,"Manchester, UK",1180.01
+2025-11-21,2025-11-22,Lidl Groceries,Card Payment,Groceries,-38.00,"Manchester, UK",1142.01
+2025-11-24,2025-11-25,Parental Support,Bank Giro Credit,Income,100.00,UK,1242.01
+2025-11-25,2025-11-26,Starbucks,Card Payment,Dining,-9.50,"Manchester, UK",1232.51
+2025-11-26,2025-11-27,The Deaf Institute,Card Payment,Entertainment,-48.00,"Manchester, UK",1184.51
+2025-11-28,2025-11-29,Train Ticket to Liverpool,Card Payment,Transportation,-30.00,"Manchester, UK",1154.51
+2025-12-01,2025-12-02,Student Accommodation Rent,Direct Debit,Housing,-600.00,"Manchester, UK",554.51
+2025-12-02,2025-12-03,Parental Support,Bank Giro Credit,Income,100.00,UK,654.51
+2025-12-03,2025-12-04,Tesco Express Groceries,Card Payment,Groceries,-35.00,"Manchester, UK",619.51
+2025-12-05,2025-12-06,Fifth Nightclub,Card Payment,Entertainment,-60.00,"Manchester, UK",559.51
+2025-12-08,2025-12-09,Parental Support,Bank Giro Credit,Income,100.00,UK,659.51
+2025-12-09,2025-12-10,Greggs,Card Payment,Dining,-7.00,"Manchester, UK",652.51
+2025-12-10,2025-12-11,42’s Nightclub,Card Payment,Entertainment,-62.00,"Manchester, UK",590.51
+2025-12-12,2025-12-13,Sainsbury’s Groceries,Card Payment,Groceries,-40.00,"Manchester, UK",550.51
+2025-12-15,2025-12-16,Parental Support,Bank Giro Credit,Income,100.00,UK,650.51
+2025-12-16,2025-12-17,Revolution Bar,Card Payment,Entertainment,-55.00,"Manchester, UK",595.51
+2025-12-17,2025-12-18,Costa Coffee,Card Payment,Dining,-8.50,"Manchester, UK",587.01
+2025-12-19,2025-12-20,Factory Nightclub,Card Payment,Entertainment,-65.00,"Manchester, UK",522.01
+2025-12-22,2025-12-23,Parental Support,Bank Giro Credit,Income,100.00,UK,622.01
+2025-12-23,2025-12-24,Aldi Groceries,Card Payment,Groceries,-38.00,"Manchester, UK",584.01
+2025-12-24,2025-12-25,The Font Bar,Card Payment,Entertainment,-50.00,"Manchester, UK",534.01
+2025-12-26,2025-12-27,Uber - Night Out,Card Payment,Transportation,-14.00,"Manchester, UK",520.01
+2025-12-29,2025-12-30,Parental Support,Bank Giro Credit,Income,100.00,UK,620.01
+2025-12-30,2025-12-31,Tesco Express Groceries,Card Payment,Groceries,-35.00,"Manchester, UK",585.01
+2025-12-31,2025-12-31,Tiger Tiger Club,Card Payment,Entertainment,-60.00,"Manchester, UK",525.01

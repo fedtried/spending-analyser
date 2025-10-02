@@ -2,11 +2,7 @@
 
 ## 🎯 Problem Statement
 
-After researching Trading 212's user base, I've identified that the target users are millennials and Gen Z adults (25-40) who are financially curious but not necessarily financially literate. They're using apps like Monzo and Revolut for banking, they've maybe dabbled in investing through Trading 212, but they still feel anxious about their spending habits. They know they should budget, but traditional budgeting tools feel like homework - too rigid, judgmental, and disconnected from their actual lifestyle. What they really need isn't another app telling them they spend too much on coffee; they need a financial companion that understands their spending is emotional, contextual, and personal.
-
-This app bridges that gap by making spending analysis feel less like a chore and more like having a conversation with a knowledgeable friend who happens to be great with money. One that doesn't just categorise your spending (excel can do that) but it understands that your Friday Pret habit might be your mental health routine, that your weekend Uber rides are how you maintain friendships, and that cutting all "unnecessary" spending isn't realistic or healthy. 
-
-The ultimate value proposition is simple: this app helps users move from financial anxiety to financial awareness without the traditional guilt trip. It's the difference between "You spent £200 on entertainment" and "Your entertainment spending brings you joy and keeps you social - here's how to maintain it while still saving £50/month." This aligns perfectly with Trading 212's mission of democratising finance - to not just making investing accessible, but making financial self-awareness accessible too. This isn't about building another budget tracker - it's about building a spending analyser that actually understands that behind every transaction is a human trying to live their life.
+Target users are financially curious millennials and Gen Z (25–40) who use Monzo/Revolut and may dabble in Trading 212, but feel anxious about spending and find traditional budgeting rigid and judgmental. This app makes analysis conversational and empathetic—going beyond categorisation to recognise context (e.g., a Friday Pret as self‑care) and provide realistic, non‑shaming guidance. The goal is to move users from anxiety to awareness with actionable insights that fit their life, aligning with Trading 212’s mission to democratise financial self‑awareness.
 
 ## 🚀 Live Demo
 
@@ -16,19 +12,24 @@ https://spending-analyser.streamlit.app/
 
 A couple of [Reddit](https://www.reddit.com/r/trading212/comments/1l8m6gy/listen_to_your_users/) posts have indicated that the current user base highly values simple and intuitive experiences. Therefore, it's imperative that anyone with a Trading 212 account should be able to go from demo data -> value with minimal clicks. 
 
-[Explain each feature and WHY you built it]
+Natural Language analysis where the prompt considers the audience, what they value and the insight they'd be looking to gain from this tool. 
+
+> For example, if someone is spending 50% of their income on rent in London that's about average and there's no point telling them to reduce their spending. However, if they're spending money on takeaways AND grocery shopping it may be a good idea to suggest meal planning to reduce food waste, and the cost associated.  
+
+Natural language feature is also in a chat style with streaming responses as we have got used to this method of talking with AI bots. It seems more personable too. 
+
+The main graph is a time series visualisation of spending vs income with main balance overlayed ontop. This is useful for users so they can match up high spending periods with a particular event. It also makes it really easy to see the 'drip' spending - minor but every single day. This makes it easier for people to spot visual patterns that raw numbers from a bank statement can't provide. 
 
 ## 🏗️ Technical Architecture
-[Simple diagram, tech choices with rationale]
+The app is a Streamlit client that keeps all user state in memory. When a CSV (or demo data) is provided, a lightweight ingestion layer detects the schema, normalizes fields (date, merchant, category, amount), validates with Pydantic, and builds derived tables and metrics in Pandas. These same frames power both the Plotly visuals and the context packaged for the AI.
 
-## 📊 Product Metrics
-[What you'd measure and why]
+For analysis, a structured prompt (user intent + summarized tables + guardrails) is sent to Gemini 2.0 Flash and responses are streamed directly into the chat UI. Errors or timeouts fall back to deterministic summaries so the interface remains responsive.
 
-## 🔮 Future Vision
-[6-month roadmap if this were real]
-
-## 🤝 Cross-functional Considerations
-[Legal, compliance, support, sales angles]
+Key considerations:
+- Reliability: schema detection with sensible defaults, strict validation, and graceful fallbacks for AI/service failures.
+- Performance: all processing is in-memory, incremental filtering on precomputed frames, streaming-first UX to reduce perceived latency.
+- Security/Privacy: no data is persisted; secrets are read from Streamlit `secrets.toml`; uploads stay in session memory.
+- Accessibility/UX: Plotly charts reflect current filters; state-driven UI avoids recomputation beyond what changed.
 
 ## 💻 Local Development
 
@@ -40,7 +41,7 @@ A couple of [Reddit](https://www.reddit.com/r/trading212/comments/1l8m6gy/listen
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone git@github.com:fedtried/spending-analyser.git
    cd spending-analyser
    ```
 
@@ -59,42 +60,8 @@ A couple of [Reddit](https://www.reddit.com/r/trading212/comments/1l8m6gy/listen
    ```bash
    streamlit run app.py
    ```
-
-5. **View the app**
-   - Open your browser to `http://localhost:8501`
-   - The app will automatically reload when you make changes
-
-### Development Workflow
-
-- **Activate venv**: Always run `source .venv/bin/activate` before working
-- **Install new packages**: Add to `requirements.txt` and run `pip install -r requirements.txt`
-- **Deactivate venv**: Run `deactivate` when finished
-
-### Project Structure
-```
-spending-analyser/
-├── .venv/                    # Virtual environment (don't commit)
-├── .streamlit/
-│   ├── config.toml          # Dark theme configuration
-│   └── secrets.example.toml # API keys template
-├── app.py                   # Main Streamlit application
-├── requirements.txt         # Python dependencies
-├── .gitignore              # Git ignore rules
-├── data/                   # Sample data directory
-├── utils/                  # Utility functions
-└── components/             # Reusable UI components
-```
-
+   
 ### Environment Variables
 - Copy `.streamlit/secrets.example.toml` to `.streamlit/secrets.toml`
 - Add your API keys (OpenAI, etc.) to `secrets.toml`
 - Never commit `secrets.toml` to version control
-
-## 📝 Development Journal
-[Link to commits showing iterative process]
-
-Using Cursor to get setup with boilerplate
-
-Using Claude Code to plan tasks and architectures 
-
-Using Perplexity to research user base and trends to understand users 

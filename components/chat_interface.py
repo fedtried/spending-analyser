@@ -49,7 +49,6 @@ class ChatInterface:
         if "chat_messages" not in st.session_state:
             st.session_state.chat_messages = []
         
-        # processing_state is now initialized in main app
         
         if "current_pdf" not in st.session_state:
             st.session_state.current_pdf = None
@@ -87,15 +86,12 @@ class ChatInterface:
         """Render the main chat container with all messages."""
         messages = self.get_messages()
         
-        # Create chat container
         chat_container = st.container()
         
         with chat_container:
-            # Render each message
             for message in messages:
                 self._render_message(message)
             
-            # No typing indicator needed
     
     def _render_message(self, message: ChatMessage) -> None:
         """Render a single chat message."""
@@ -106,7 +102,7 @@ class ChatInterface:
             with st.chat_message("assistant"):
                 st.markdown(message.content)
         elif message.role == "system":
-            with st.chat_message("system"):
+            with st.chat_message("system", avatar="💻"):
                 st.info(message.content)
     
     
@@ -114,13 +110,10 @@ class ChatInterface:
         """Update the last assistant message or create a new one."""
         if st.session_state.chat_messages and st.session_state.chat_messages[-1].get("role") == "assistant":
             if append:
-                # Update the last assistant message
                 st.session_state.chat_messages[-1]["content"] += content
             else:
-                # Replace the last assistant message
                 st.session_state.chat_messages[-1]["content"] = content
         else:
-            # Create new assistant message
             self.add_message("assistant", content)
     
     
@@ -169,26 +162,7 @@ class ChatInterface:
     
     def render_sidebar_metrics(self) -> None:
         """Render parsing metrics in the sidebar."""
-        with st.sidebar:
-            st.markdown("### Processing Status")
-            
-            state = self.get_processing_state()
-            if state == "idle":
-                st.info("Ready to process PDF")
-            elif state == "uploading":
-                st.info("📤 Uploading PDF...")
-            elif state == "streaming":
-                st.info("🔄 Analyzing document...")
-            elif state == "complete":
-                st.success("✅ Analysis complete!")
-            
-            # Show parsing metrics
-            metrics = self.get_parsing_metrics()
-            if any(metrics.values()):
-                st.markdown("**Progress**")
-                st.metric("Pages Processed", metrics.get("pages_processed", 0))
-                st.metric("Transactions Found", metrics.get("transactions_found", 0))
-                st.metric("Categories Identified", metrics.get("categories_identified", 0))
+        return
     
     def render_download_section(self) -> None:
         """Render CSV download section when processing is complete."""
@@ -201,7 +175,6 @@ class ChatInterface:
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    # Convert DataFrame to CSV
                     csv = data.to_csv(index=False)
                     st.download_button(
                         label="📥 Download CSV",
@@ -212,50 +185,30 @@ class ChatInterface:
                     )
                 
                 with col2:
-                    # Show preview
                     st.markdown("**Preview (first 5 rows):**")
                     st.dataframe(data.head(), use_container_width=True)
     
     def start_pdf_processing(self, pdf_file) -> None:
         """Initialize PDF processing with initial messages."""
-        # Clear previous messages
         self.clear_messages()
-        
-        # Set current PDF
         self.set_current_pdf(pdf_file)
-        
-        # Add initial messages
         self.add_message("user", f"📎 Uploaded: {pdf_file.name}")
         self.add_message("assistant", "I can see your bank statement! Let me analyze this for you...")
         self.add_message("system", "📄 PDF received, analyzing document structure...")
         
-        # Set processing state
         self.set_processing_state("streaming")
-        
-        # Reset metrics
         self.update_parsing_metrics(pages_processed=0, transactions_found=0, categories_identified=0)
     
     def start_demo_analysis(self) -> None:
         """Initialize demo data analysis with initial messages."""
-        # Clear previous messages
         self.clear_messages()
-        
-        # Add initial messages
         self.add_message("user", "📊 Selected: Demo Data")
         self.add_message("assistant", "Great! I can see you've selected the demo data. Let me analyze this sample bank statement for you...")
         self.add_message("system", "📄 Demo data loaded, analyzing transaction patterns...")
-        
-        # Set processing state
         self.set_processing_state("streaming")
-        
-        # Reset metrics
         self.update_parsing_metrics(pages_processed=1, transactions_found=0, categories_identified=0)
     
     def complete_processing(self, extracted_data) -> None:
         """Complete the processing and set final state."""
-        print(f"🔍 [DEBUG] complete_processing called - setting state to 'complete'")
         self.set_extracted_data(extracted_data)
         self.set_processing_state("complete")
-        print(f"🔍 [DEBUG] Processing state set to: {st.session_state.get('processing_state')}")
-        
-        # No generic completion message - let the AI insights be the natural conclusion
