@@ -227,6 +227,7 @@ def render_sidebar() -> None:
         if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
             # Clear all data and reset state
             st.session_state["df"] = None
+            st.session_state["df_raw"] = None
             st.session_state["analysis"] = None
             st.session_state["ai_pdf_summary"] = None
             st.session_state["demo_ai_processed"] = False
@@ -248,8 +249,6 @@ def render_sidebar() -> None:
                 chat_interface.clear_messages()
             
             st.rerun()
-
-
 
 
 def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
