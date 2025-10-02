@@ -468,82 +468,69 @@ def render_visualizations_section() -> None:
                 else:
                     st.info("No spending transactions to build a category breakdown.")
                 
-                with st.container():
-                    st.markdown("**End-of-Month Squeeze Meter**")
-                    try:
-                        from calendar import monthrange
-                        today_date = date.today()
-                        analysis_end = end_date if 'end_date' in locals() and end_date else today_date
-                        # Clamp 'today' to selected analysis window end
-                        anchor_day = min(today_date, analysis_end)
-                        last_day = monthrange(anchor_day.year, anchor_day.month)[1]
-                        month_end = date(anchor_day.year, anchor_day.month, last_day)
-                        days_remaining = max(1, (month_end - anchor_day).days + 1)
-
-                        df_bal_window = df.copy()
-                        df_bal_window['Day'] = df_bal_window['timestamp'].dt.date
-                        df_bal_window = df_bal_window[df_bal_window['Day'] <= anchor_day]
-
-                        current_balance = None
-                        if 'balance_after' in df_bal_window.columns and not df_bal_window['balance_after'].isna().all():
-                            current_balance = float(df_bal_window.sort_values('timestamp')['balance_after'].dropna().iloc[-1])
-                        else:
-                            # Fallback: use cumulative net within month-to-date
-                            month_start = date(anchor_day.year, anchor_day.month, 1)
-                            mtd = df_bal_window[(df_bal_window['Day'] >= month_start) & (df_bal_window['Day'] <= anchor_day)]
-                            current_balance = float(mtd['amount'].sum()) if not mtd.empty else 0.0
-
-                        safe_per_day = max(0.0, current_balance / days_remaining)
-
-                        gauge_fig = go.Figure(go.Indicator(
-                            mode="gauge+number+delta",
-                            value=safe_per_day,
-                            delta={"reference": (df[df['amount'] < 0]['amount'].abs().mean() or 0), "relative": False, "valueformat": ".2f"},
-                            title={"text": "Safe spend per day (£)"},
-                            number={"prefix": "£", "valueformat": ".2f"},
-                            gauge={
-                                "axis": {"range": [0, max(1.0, safe_per_day * 3)]},
-                                "bar": {"color": get_accessible_colors()['balance']},
-                                "steps": [
-                                    {"range": [0, safe_per_day * 0.5], "color": "#ffebee"},
-                                    {"range": [safe_per_day * 0.5, safe_per_day], "color": "#fff8e1"},
-                                    {"range": [safe_per_day, max(1.0, safe_per_day * 3)], "color": "#e8f5e9"},
-                                ],
-                            }
-                        ))
-                        gauge_fig.update_layout(height=220, margin=dict(l=10, r=10, t=30, b=10))
-                        st.caption(f"Days remaining this month: {days_remaining}")
-                        st.plotly_chart(gauge_fig, use_container_width=True)
-                    except Exception as _e:
-                        st.info("Not enough data to compute the Squeeze Meter.")
 
                 with st.container():
-                    st.markdown("**Subscription Garden**")
+                    st.markdown("#### Subscription Garden")
+                    st.caption("Treemap of recurring payments — bigger blocks cost you more each month; scan for services to cancel or renegotiate.")
                     try:
-                        lookback_days = 120
-                        max_dt = df['timestamp'].max().normalize() if not df.empty else pd.Timestamp(date.today())
-                        lookback_start = max_dt - pd.Timedelta(days=lookback_days)
-                        df_look = df[(df['timestamp'] >= lookback_start) & (df['timestamp'] <= max_dt)].copy()
-
-                        recur = detect_recurring_charges(df_look)
-                        recur = recur[recur.get('is_recurring', False) == True]
-                        if recur.empty:
-                            st.info("No recurring or subscription-like spend detected in the selected window.")
+                        # Use all available data, not just lookback window
+                        spend = df[df['amount'] < 0].copy()
+                        if spend.empty:
+                            st.info("No spending transactions found.")
                         else:
-                            garden = recur.sort_values('amount_median', ascending=False)[['merchant','amount_median']]
-                            garden.columns = ['merchant_str','Spend']
+                            spend['Spend'] = -spend['amount']
+                            
+                            # Try cadence-based detection first
+                            recur = detect_recurring_charges(df)
+                            if not recur.empty and 'is_recurring' in recur.columns:
+                                recur = recur[recur['is_recurring'] == True]
+                            
+                            if not recur.empty:
+                                # Use detected recurring charges
+                                garden = recur.sort_values('amount_median', ascending=False)[['merchant','amount_median']]
+                                garden.columns = ['merchant_str','Spend']
+                                title_suffix = " (detected recurring charges)"
+                            else:
+                                # Fallback: keyword + monthly recurrence detection
+                                sub_keywords = [
+                                    'subscription', 'netflix', 'spotify', 'prime', 'disney', 'apple music',
+                                    'youtube premium', 'gym', 'membership', 'amazon music', 'prime video',
+                                    'direct debit', 'dd', 'monthly', 'annual'
+                                ]
+                                if 'description' in spend.columns:
+                                    spend['desc_lower'] = spend['description'].astype(str).str.lower()
+                                else:
+                                    spend['desc_lower'] = ""
+                                sub_pattern = '|'.join([re.escape(k) for k in sub_keywords])
+                                keyword_flag = spend['desc_lower'].str.contains(sub_pattern, case=False, regex=True, na=False)
+                                
+                                # Also check for monthly recurrence
+                                spend['month'] = spend['timestamp'].dt.to_period('M')
+                                monthly_recur = spend.groupby(['merchant'])['month'].nunique().reset_index(name='distinct_months')
+                                recurring_merchants = set(monthly_recur[monthly_recur['distinct_months'] >= 2]['merchant'].dropna().astype(str))
+                                spend['merchant_str'] = spend['merchant'].astype(str)
+                                recur_flag = spend['merchant_str'].isin(recurring_merchants)
+                                
+                                subs = spend[keyword_flag | recur_flag]
+                                if subs.empty:
+                                    st.info("No recurring or subscription-like spend detected.")
+                                    return
+                                
+                                garden = subs.groupby('merchant_str', dropna=False)['Spend'].sum().reset_index()
+                                title_suffix = " (keyword + monthly recurrence)"
+                            
+                            garden = garden.sort_values('Spend', ascending=False)
                             garden_fig = px.treemap(
                                 garden,
                                 path=['merchant_str'],
                                 values='Spend',
                                 color='Spend',
-                                color_continuous_scale='RdYlGn_r',
-                                title='Recurring/Subscription Spend (detected recurring charges)'
+                                color_continuous_scale='RdYlGn_r'
                             )
                             garden_fig.update_layout(height=360, margin=dict(l=10, r=10, t=40, b=10))
                             st.plotly_chart(garden_fig, use_container_width=True)
                     except Exception as _e:
-                        st.info("Unable to render Subscription Garden for this data. Please include a longer history of transactions.")
+                        st.info(f"Unable to render Subscription Garden: {str(_e)}")
 
                     
             except Exception as exc:
