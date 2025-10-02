@@ -4,6 +4,7 @@ import os
 import io
 import time
 from typing import List, Optional
+import re
 from datetime import datetime, date
 
 import streamlit as st
@@ -18,6 +19,8 @@ from utils.data_loader import (
     load_demo_dataframe,
     load_user_dataframe,
     analyze_dataframe,
+    detect_recurring_charges,
+    detect_day_of_month_recurring_charges,
 )
 from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface
@@ -465,6 +468,71 @@ def render_visualizations_section() -> None:
                         st.plotly_chart(cat_fig, use_container_width=True)
                 else:
                     st.info("No spending transactions to build a category breakdown.")
+                
+
+                with st.container():
+                    st.markdown("#### Subscription Garden")
+                    st.caption("Treemap of recurring payments — bigger blocks cost you more each month; scan for services to cancel or renegotiate.")
+                    try:
+                        # Use all available data, not just lookback window
+                        spend = df[df['amount'] < 0].copy()
+                        if spend.empty:
+                            st.info("No spending transactions found.")
+                        else:
+                            spend['Spend'] = -spend['amount']
+                            
+                            # Try cadence-based detection first
+                            recur = detect_recurring_charges(df)
+                            if not recur.empty and 'is_recurring' in recur.columns:
+                                recur = recur[recur['is_recurring'] == True]
+                            
+                            if not recur.empty:
+                                # Use detected recurring charges
+                                garden = recur.sort_values('amount_median', ascending=False)[['merchant','amount_median']]
+                                garden.columns = ['merchant_str','Spend']
+                                title_suffix = " (detected recurring charges)"
+                            else:
+                                # Fallback: keyword + monthly recurrence detection
+                                sub_keywords = [
+                                    'subscription', 'netflix', 'spotify', 'prime', 'disney', 'apple music',
+                                    'youtube premium', 'gym', 'membership', 'amazon music', 'prime video',
+                                    'direct debit', 'dd', 'monthly', 'annual'
+                                ]
+                                if 'description' in spend.columns:
+                                    spend['desc_lower'] = spend['description'].astype(str).str.lower()
+                                else:
+                                    spend['desc_lower'] = ""
+                                sub_pattern = '|'.join([re.escape(k) for k in sub_keywords])
+                                keyword_flag = spend['desc_lower'].str.contains(sub_pattern, case=False, regex=True, na=False)
+                                
+                                # Also check for monthly recurrence
+                                spend['month'] = spend['timestamp'].dt.to_period('M')
+                                monthly_recur = spend.groupby(['merchant'])['month'].nunique().reset_index(name='distinct_months')
+                                recurring_merchants = set(monthly_recur[monthly_recur['distinct_months'] >= 2]['merchant'].dropna().astype(str))
+                                spend['merchant_str'] = spend['merchant'].astype(str)
+                                recur_flag = spend['merchant_str'].isin(recurring_merchants)
+                                
+                                subs = spend[keyword_flag | recur_flag]
+                                if subs.empty:
+                                    st.info("No recurring or subscription-like spend detected.")
+                                    return
+                                
+                                garden = subs.groupby('merchant_str', dropna=False)['Spend'].sum().reset_index()
+                                title_suffix = " (keyword + monthly recurrence)"
+                            
+                            garden = garden.sort_values('Spend', ascending=False)
+                            garden_fig = px.treemap(
+                                garden,
+                                path=['merchant_str'],
+                                values='Spend',
+                                color='Spend',
+                                color_continuous_scale='RdYlGn_r'
+                            )
+                            garden_fig.update_layout(height=360, margin=dict(l=10, r=10, t=40, b=10))
+                            st.plotly_chart(garden_fig, use_container_width=True)
+                    except Exception as _e:
+                        st.info(f"Unable to render Subscription Garden: {str(_e)}")
+
                     
             except Exception as exc:
                 if st.session_state.get("processing_state") == "streaming":

@@ -20,3 +20,23 @@ Transaction_Date,Posting_Date,Description,Transaction_Type,Merchant_Category,Amo
 2025-09-29,2025-09-30,Gym Membership,Direct Debit,Health,-25.00,"Leicester, UK",3201.13
 2025-09-30,2025-09-30,Salary - Teaching Job,Bank Giro Credit,Income,2200.00,"Leicester, UK",5401.13
 2025-09-30,2025-10-01,Prescription Charge,Card Payment,Health,-9.65,"Leicester, UK",5391.48
+2025-10-01,2025-10-01,Mortgage Payment,Direct Debit,Housing,-1200.00,"Leicester, UK",4191.48
+2025-10-02,2025-10-02,Netflix Subscription,Direct Debit,Entertainment,-15.99,Online,4175.49
+2025-10-03,2025-10-04,Tesco Groceries,Card Payment,Groceries,-90.20,"Leicester, UK",4085.29
+2025-10-05,2025-10-05,Council Tax,Direct Debit,Utilities,-180.00,"Leicester, UK",3905.29
+2025-10-07,2025-10-08,BP Petrol,Card Payment,Transportation,-58.00,"Leicester, UK",3847.29
+2025-10-10,2025-10-10,Electricity Bill,Direct Debit,Utilities,-120.00,"Leicester, UK",3727.29
+2025-10-11,2025-10-12,Sainsbury's Groceries,Card Payment,Groceries,-95.10,"Leicester, UK",3632.19
+2025-10-13,2025-10-14,Amazon Purchase - Books,Card Payment,Shopping,-32.50,Online,3599.69
+2025-10-15,2025-10-15,Water Bill,Direct Debit,Utilities,-60.00,"Leicester, UK",3539.69
+2025-10-16,2025-10-17,Costa Coffee,Card Payment,Dining,-12.80,"Leicester, UK",3526.89
+2025-10-18,2025-10-19,Aldi Groceries,Card Payment,Groceries,-82.60,"Leicester, UK",3444.29
+2025-10-20,2025-10-20,Broadband Internet,Direct Debit,Utilities,-35.99,Online,3408.30
+2025-10-22,2025-10-23,Nando's Dinner,Card Payment,Dining,-70.00,"Leicester, UK",3338.30
+2025-10-24,2025-10-25,Morrisons Groceries,Card Payment,Groceries,-91.40,"Leicester, UK",3246.90
+2025-10-25,2025-10-25,Child Benefit,Bank Giro Credit,Income,182.00,UK Government,3428.90
+2025-10-26,2025-10-27,School Uniforms - M&S,Card Payment,Education,-50.00,"Leicester, UK",3378.90
+2025-10-28,2025-10-28,Husband Salary - Engineering Firm,Bank Giro Credit,Income,2800.00,"Leicester, UK",6178.90
+2025-10-29,2025-10-30,Gym Membership,Direct Debit,Health,-25.00,"Leicester, UK",6153.90
+2025-10-30,2025-10-30,Salary - Teaching Job,Bank Giro Credit,Income,2200.00,"Leicester, UK",8353.90
+2025-10-31,2025-10-31,Pharmacy Purchase,Card Payment,Health,-15.30,"Leicester, UK",8338.60
