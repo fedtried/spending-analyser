@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import io
+import time
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -32,6 +33,8 @@ from utils.data_loader import (
     load_user_dataframe,
     analyze_dataframe,
 )
+from utils.gemini_streaming import create_streaming_processor
+from components.chat_interface import ChatInterface
 
 # Constants
 APP_NAME: str = "Spending Analyst"
@@ -64,7 +67,7 @@ def init_session_state() -> None:
     """Initialize Streamlit session state variables used across the app."""
     from datetime import date
     defaults = {
-        "data_source": "Demo Data",  # or "Upload PDF"
+        "data_source": "Demo Data",  # Will be determined by file upload
         "analysis_period": "Custom Date Range",
         "date_range_type": "Custom Date Range",  # "Last 7 days", "Last 30 days", etc. or "Custom Date Range"
         "start_date": date(2025, 7, 1),  # Default to demo data range start
@@ -73,10 +76,31 @@ def init_session_state() -> None:
         "df": None,  # placeholder for DataFrame when added later
         "analysis": None,  # AnalysisResult placeholder
         "ai_pdf_summary": None,  # Stores one-sentence summary 
+        # Chat interface state
+        "chat_interface": None,  # ChatInterface instance
+        "streaming_processor": None,  # StreamingGeminiProcessor instance
+        "demo_ai_processed": False,  # Flag to track if demo data has been AI processed
+        "processing_state": "idle",  # idle, uploading, streaming, complete
+        "start_pdf_processing": False,  # Flag to start PDF processing
+        "start_demo_processing": False,  # Flag to start demo processing
+        "is_processing": False,  # Guard to prevent duplicate runs
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+
+def init_chat_components() -> None:
+    """Initialize chat interface and streaming processor if not already done."""
+    if st.session_state.get("chat_interface") is None:
+        st.session_state["chat_interface"] = ChatInterface()
+    
+    if st.session_state.get("streaming_processor") is None:
+        try:
+            st.session_state["streaming_processor"] = create_streaming_processor()
+        except Exception as e:
+            st.error(f"Failed to initialize streaming processor: {str(e)}")
+            st.session_state["streaming_processor"] = None
 
 
 def render_header() -> None:
@@ -96,31 +120,89 @@ def render_header() -> None:
     st.divider()
 
 
-def render_sidebar() -> None:
-    """Render the sidebar controls for data source, period, and view options."""
-    with st.sidebar:
-        st.markdown("### Settings")
-
-        st.caption("Use the controls to configure your analysis.")
-
-        st.markdown("**Data Source**")
-        data_source = st.radio(
-            label="Choose data source",
-            options=["Demo Data", "Upload PDF"],
-            index=0 if st.session_state["data_source"] == "Demo Data" else 1,
-            horizontal=True,
-            key="data_source",
-            help="Load prebuilt demo data or upload your own PDF bank statement.",
-        )
-
-        if st.session_state.get("data_source") == "Upload PDF":
-            uploaded = st.file_uploader(
+def render_data_source_section() -> None:
+    """Render the data source selection section with upload and GO button."""
+    with st.container(border=True):
+        st.markdown("### 📊 Choose Your Data Source")
+        st.caption("Use demo data to explore the features, or upload your own bank statement for personalized analysis.")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # File uploader
+            uploaded_file = st.file_uploader(
                 "Upload PDF bank statement",
                 type=["pdf"],
                 accept_multiple_files=False,
-                help="Upload your bank statement PDF. The app will extract transaction data automatically.",
+                help="Upload your bank statement PDF for AI-powered analysis. Leave empty to use demo data.",
+                key="main_uploader"
             )
-            st.session_state["uploaded_file"] = uploaded
+            
+            # Store uploaded file in session state
+            st.session_state["uploaded_file"] = uploaded_file
+            
+            # Determine data source based on upload
+            if uploaded_file is not None:
+                st.session_state["data_source"] = "Upload PDF"
+                st.success(f"📎 Ready to analyze: {uploaded_file.name}")
+            else:
+                st.session_state["data_source"] = "Demo Data"
+                st.info("📊 Will use demo data for analysis")
+        
+        with col2:
+            st.markdown("**Ready to analyze?**")
+            
+            # GO button
+            if st.button("🚀 GO", type="primary", use_container_width=True, help="Start the AI analysis"):
+                if st.session_state.get("data_source") == "Upload PDF" and uploaded_file is not None:
+                    # Set flag to start PDF processing
+                    st.session_state["start_pdf_processing"] = True
+                    st.session_state["processing_state"] = "uploading"
+                elif st.session_state.get("data_source") == "Demo Data":
+                    # Set flag to start demo processing
+                    st.session_state["start_demo_processing"] = True
+                    st.session_state["processing_state"] = "uploading"
+                else:
+                    st.error("Please upload a PDF file or select demo data")
+            
+            # Reset button (only show if we have processed data)
+            if (st.session_state.get("df") is not None or 
+                st.session_state.get("processing_state") == "complete"):
+                if st.button("🔄 Reset", use_container_width=True, help="Clear analysis and start fresh"):
+                    # Clear all data and reset state
+                    st.session_state["df"] = None
+                    st.session_state["analysis"] = None
+                    st.session_state["ai_pdf_summary"] = None
+                    st.session_state["demo_ai_processed"] = False
+                    st.session_state["processing_state"] = "idle"
+                    st.session_state["uploaded_file"] = None
+                    st.session_state["data_source"] = "Demo Data"
+                    st.session_state["start_pdf_processing"] = False
+                    st.session_state["start_demo_processing"] = False
+                    st.session_state["is_processing"] = False
+                    
+                    # Clear chat messages
+                    chat_interface = st.session_state.get("chat_interface")
+                    if chat_interface:
+                        chat_interface.clear_messages()
+                    
+                    st.rerun()
+            
+            # Show current status
+            if st.session_state.get("data_source") == "Upload PDF":
+                st.caption("✅ PDF ready for analysis")
+            else:
+                st.caption("✅ Demo data ready for analysis")
+        
+        # Processing metrics are shown in the sidebar
+
+
+def render_sidebar() -> None:
+    """Render the sidebar controls for analysis period and view options."""
+    with st.sidebar:
+        st.markdown("### Settings")
+
+        st.caption("Configure your analysis period and view options.")
 
         st.markdown("**Analysis Period**")
         date_range_type = st.selectbox(
@@ -188,8 +270,12 @@ def render_sidebar() -> None:
                 st.session_state["end_date"] = end_date
                 # Trigger rerun to reload data with new filter
                 st.rerun()
-
-
+        
+        # Show chat interface metrics if available
+        chat_interface = st.session_state.get("chat_interface")
+        if chat_interface and st.session_state.get("processing_state") in ["streaming", "complete"]:
+            st.markdown("---")
+            chat_interface.render_sidebar_metrics()
 
 
 def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
@@ -402,7 +488,38 @@ def render_ai_insights_section() -> None:
         if summary:
             st.write(summary)
         else:
-            st.info("Upload a PDF to get AI insights.")
+            st.info("AI Insights will appear here once data is available.")
+
+
+def render_chat_section() -> None:
+    """Render the chat interface section for data analysis."""
+    chat_interface = st.session_state.get("chat_interface")
+    if chat_interface and st.session_state.get("data_source") in ["Demo Data", "Upload PDF"]:
+        with st.container(border=True):
+            data_source = st.session_state.get("data_source")
+            if data_source == "Upload PDF":
+                st.markdown("### 💬 PDF Analysis Chat")
+            else:
+                st.markdown("### 💬 Financial Analysis Chat")
+            
+            # Handle processing flags
+            if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
+                st.session_state["start_pdf_processing"] = False
+                uploaded_file = st.session_state.get("uploaded_file")
+                if uploaded_file is not None:
+                    st.session_state["is_processing"] = True
+                    process_pdf_with_streaming(uploaded_file)
+            
+            if st.session_state.get("start_demo_processing") and not st.session_state.get("is_processing"):
+                st.session_state["start_demo_processing"] = False
+                st.session_state["is_processing"] = True
+                process_demo_data_with_ai()
+            
+            chat_interface.render_chat_container()
+            
+            # Show download section if processing is complete and we have data
+            if st.session_state.get("data_source") == "Upload PDF":
+                chat_interface.render_download_section()
 
 
 def render_footer() -> None:
@@ -444,10 +561,93 @@ def get_current_date_range():
         return st.session_state.get("start_date"), st.session_state.get("end_date")
 
 
-def maybe_load_demo_data() -> None:
-    """Populate session with demo data and analysis if Demo Data is selected."""
-    if st.session_state.get("data_source") == "Demo Data":
-        df = load_demo_dataframe()
+def process_pdf_with_streaming(pdf_file) -> None:
+    """Process PDF with streaming chat interface."""
+    chat_interface = st.session_state.get("chat_interface")
+    streaming_processor = st.session_state.get("streaming_processor")
+    
+    if not chat_interface or not streaming_processor:
+        st.error("Chat interface not properly initialized")
+        return
+    
+    # Start PDF processing
+    chat_interface.start_pdf_processing(pdf_file)
+    
+    # Create a placeholder for streaming content
+    message_placeholder = st.empty()
+    
+    # Process PDF with streaming
+    try:
+        full_response = ""
+        for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
+            full_response += chunk
+            # Update the message in real-time
+            with message_placeholder.container():
+                chat_interface.render_chat_container()
+            time.sleep(0.1)  # Small delay for smooth streaming
+        
+        # Final update
+        with message_placeholder.container():
+            chat_interface.render_chat_container()
+        
+        # Complete processing
+        extracted_data = chat_interface.get_extracted_data()
+        if extracted_data is not None:
+            # Convert to our internal format
+            df = convert_gemini_csv_to_internal_format(extracted_data)
+            
+            # Apply date range filter
+            start_date, end_date = get_current_date_range()
+            if start_date and end_date:
+                df = filter_dataframe_by_date_range(df, start_date, end_date)
+            
+            st.session_state["df"] = df
+            st.session_state["analysis"] = analyze_dataframe(df)
+            
+            # Set AI summary
+            st.session_state["ai_pdf_summary"] = full_response
+        
+        chat_interface.complete_processing(extracted_data)
+        
+    except Exception as e:
+        st.error(f"Streaming processing failed: {str(e)}")
+        chat_interface.add_message("system", f"❌ Processing failed: {str(e)}")
+    finally:
+        # Always clear processing guard at end
+        st.session_state["is_processing"] = False
+
+
+def process_demo_data_with_ai() -> None:
+    """Process demo data with AI analysis using streaming chat interface."""
+    chat_interface = st.session_state.get("chat_interface")
+    streaming_processor = st.session_state.get("streaming_processor")
+    
+    if not chat_interface or not streaming_processor:
+        st.error("Chat interface not properly initialized")
+        return
+    
+    # Load demo data
+    df = load_demo_dataframe()
+    
+    # Start AI analysis for demo data
+    chat_interface.start_demo_analysis()
+    
+    # Create a placeholder for streaming content
+    message_placeholder = st.empty()
+    
+    # Process demo data with AI analysis
+    try:
+        full_response = ""
+        for chunk in streaming_processor.process_demo_data_streaming(df, chat_interface):
+            full_response += chunk
+            # Update the message in real-time
+            with message_placeholder.container():
+                chat_interface.render_chat_container()
+            time.sleep(0.1)  # Small delay for smooth streaming
+        
+        # Final update
+        with message_placeholder.container():
+            chat_interface.render_chat_container()
         
         # Apply date range filter
         start_date, end_date = get_current_date_range()
@@ -456,197 +656,66 @@ def maybe_load_demo_data() -> None:
         
         st.session_state["df"] = df
         st.session_state["analysis"] = analyze_dataframe(df)
-    elif st.session_state.get("data_source") == "Upload PDF":
-        file_obj = st.session_state.get("uploaded_file")
-        if file_obj is not None:
-            try:
-                gemini_csv_df: Optional[pd.DataFrame] = None
-                try:
-                    cfg = load_config()
-                    if not cfg.gemini_api_key:
-                        raise RuntimeError("Missing api.gemini_api_key in .streamlit/secrets.toml")
+        
+        # Set AI summary
+        st.session_state["ai_pdf_summary"] = full_response
+        
+        # Mark demo data as processed
+        st.session_state["demo_ai_processed"] = True
+        
+        chat_interface.complete_processing(df)
+        
+    except Exception as e:
+        st.error(f"Demo data AI analysis failed: {str(e)}")
+        chat_interface.add_message("system", f"❌ Analysis failed: {str(e)}")
+    finally:
+        # Always clear processing guard at end
+        st.session_state["is_processing"] = False
 
-                    instruction = (
-                        "Extract this bank statement as CSV with EXACTLY this header: "
-                        "Transaction_Date,Posting_Date,Description,Transaction_Type,Merchant_Category,Amount,Location,Balance_After\n"
-                        "Rules: Use YYYY-MM-DD dates. Positive amounts for spending, negative for income. "
-                        "For Merchant_Category, choose from: Groceries, Transport, Dining, Retail, Utilities, Entertainment, Health, Cash, Savings, Transfer, Income, Uncategorized. "
-                        "Be specific with categories (e.g., 'Tesco' → 'Groceries', 'Uber' → 'Transport'). "
-                        "Output ONLY the CSV data, no explanations or code blocks."
-                    )
 
-                    csv_text: Optional[str] = None
+def convert_gemini_csv_to_internal_format(gemini_df) -> pd.DataFrame:
+    """Convert Gemini CSV output to internal DataFrame format."""
+    df = gemini_df.copy()
+    
+    # Rename columns to internal format
+    df = df.rename(columns={
+        "Transaction_Date": "timestamp",
+        "Amount": "amount", 
+        "Merchant_Category": "category",
+        "Balance_After": "balance_after",
+        "Description": "description",
+    })
+    
+    # Convert timestamp and ensure numeric types
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
+    
+    # Add required columns
+    df["currency"] = DEFAULT_CURRENCY
+    df["merchant"] = df["description"].astype(str)
+    df["category"] = df["category"].astype(str)
+    
+    # Clean up and validate
+    df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
+    
+    return df
 
-                    # Modern client flow
-                    if genai_client is not None:
-                        import tempfile
-                        client = genai_client.Client(api_key=cfg.gemini_api_key)
-                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
-                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-                            tmp.write(file_obj.getbuffer())
-                            tmp.flush()
-                            myfile = client.files.upload(file=tmp.name)
-                        result = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=[myfile, "\n\n", instruction],
-                        )
-                        csv_text = getattr(result, "text", None) or None
 
-                    # Legacy client flow
-                    elif genai_legacy is not None:
-                        import tempfile
-                        genai_legacy.configure(api_key=cfg.gemini_api_key)
-                        model = genai_legacy.GenerativeModel("gemini-2.5-flash")
-                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
-                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-                            tmp.write(file_obj.getbuffer())
-                            tmp.flush()
-                            try:
-                                uploaded_file = genai_legacy.upload_file(path=tmp.name, mime_type=mime_type)
-                            except TypeError:
-                                uploaded_file = genai_legacy.upload_file(file=tmp.name, mime_type=mime_type)
-                        result = model.generate_content([uploaded_file, "\n\n", instruction])
-                        csv_text = getattr(result, "text", None)
-                        if not csv_text and hasattr(result, "candidates"):
-                            try:
-                                csv_text = result.candidates[0].content.parts[0].text  # type: ignore[attr-defined]
-                            except Exception:
-                                csv_text = None
-                    else:
-                        raise RuntimeError("Gemini SDK not available. Did you install google-generativeai?")
-
-                    if csv_text:
-                        # Clean up any markdown formatting
-                        cleaned = csv_text.strip()
-                        if cleaned.startswith("```"):
-                            lines = cleaned.split('\n')
-                            # Find the first line that looks like a CSV header
-                            for i, line in enumerate(lines):
-                                if "Transaction_Date" in line:
-                                    cleaned = '\n'.join(lines[i:])
-                                    break
-                            cleaned = cleaned.strip("`\n ")
-                        
-                        # Parse CSV
-                        gemini_csv_df = pd.read_csv(io.StringIO(cleaned))
-                        
-                        # Validate required columns
-                        required_cols = {
-                            "Transaction_Date","Posting_Date","Description","Transaction_Type",
-                            "Merchant_Category","Amount","Location","Balance_After"
-                        }
-                        if not required_cols.issubset(set(gemini_csv_df.columns)):
-                            raise ValueError(f"CSV missing required columns. Got: {list(gemini_csv_df.columns)}")
-                except Exception as gem_csv_err:
-                    st.caption(f"Gemini CSV note: {gem_csv_err}")
-
-                # Prefer Gemini CSV if available; else fallback to local parser
-                if gemini_csv_df is not None and not gemini_csv_df.empty:
-                    # Use Gemini's structured output directly
-                    df = gemini_csv_df.rename(columns={
-                        "Transaction_Date": "timestamp",
-                        "Amount": "amount", 
-                        "Merchant_Category": "category",
-                        "Balance_After": "balance_after",
-                        "Description": "description",
-                    })
-                    
-                    # Convert timestamp and ensure numeric types
-                    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-                    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-                    df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
-                    
-                    # Add required columns
-                    df["currency"] = DEFAULT_CURRENCY
-                    df["merchant"] = df["description"].astype(str)
-                    df["category"] = df["category"].astype(str)
-                    
-                    # Clean up and validate
-                    df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
-                else:
-                    df = load_user_dataframe(file_obj)
-
-                # Apply date range filter
-                start_date, end_date = get_current_date_range()
-                if start_date and end_date:
-                    df = filter_dataframe_by_date_range(df, start_date, end_date)
-                
-                st.session_state["df"] = df
-                st.session_state["analysis"] = analyze_dataframe(df)
-
-                # Gemini integration: upload PDF and get personalized summary
-                try:
-                    cfg = load_config()
-                    if not cfg.gemini_api_key:
-                        raise RuntimeError("Missing api.gemini_api_key in .streamlit/secrets.toml")
-
-                    summary_text = None
-
-                    # Preferred modern client flow: google.genai Client + Files API
-                    if genai_client is not None:
-                        import tempfile
-                        client = genai_client.Client(api_key=cfg.gemini_api_key)
-
-                        # Persist uploaded file to disk for upload API
-                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
-                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-                            tmp.write(file_obj.getbuffer())
-                            tmp.flush()
-                            myfile = client.files.upload(file=tmp.name)  
-                        result = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=[
-                                myfile,
-                                "\n\n",
-                                "Write a personalized, summary of this bank statement. Focus on what the spending brings to the person's life, and offer suggestions for maintaining balance. Be encouraging and understanding, like a supportive friend who happens to be great with money. Keep it to 2-3 sentences.",
-                            ],
-                        )
-                        summary_text = getattr(result, "text", None) or ""
-
-                    # Legacy fallback: google.generativeai with file upload
-                    elif genai_legacy is not None:
-                        import tempfile
-                        genai_legacy.configure(api_key=cfg.gemini_api_key)
-                        model = genai_legacy.GenerativeModel("gemini-2.5-flash")
-
-                        # Persist uploaded file then upload via legacy Files helper
-                        mime_type = getattr(file_obj, "type", "application/pdf") or "application/pdf"
-                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
-                            tmp.write(file_obj.getbuffer())
-                            tmp.flush()
-                            try:
-                                uploaded_file = genai_legacy.upload_file(path=tmp.name, mime_type=mime_type)
-                            except TypeError:
-                                # Some versions expect 'file' kwarg
-                                uploaded_file = genai_legacy.upload_file(file=tmp.name, mime_type=mime_type)
-
-                        result = model.generate_content([
-                            uploaded_file,
-                            "\n\n",
-                            "Write a personalized, summary of this bank statement. Focus on what the spending brings to the person's life, and offer suggestions for maintaining balance. Be encouraging and understanding, like a supportive friend who happens to be great with money. Keep it to 2-3 sentences.",
-                        ])
-
-                        # Try to extract text depending on SDK version
-                        summary_text = getattr(result, "text", None)
-                        if not summary_text and hasattr(result, "candidates"):
-                            try:
-                                summary_text = result.candidates[0].content.parts[0].text  # type: ignore[attr-defined]
-                            except Exception:
-                                summary_text = None
-                    else:
-                        raise RuntimeError("Gemini SDK not available. Did you install google-generativeai?")
-
-                    if summary_text:
-                        st.session_state["ai_pdf_summary"] = summary_text.strip()
-                    else:
-                        st.session_state["ai_pdf_summary"] = ""
-                except Exception as gem_err:
-                    st.error(f"Gemini call failed: {gem_err}")
-            except Exception as exc:
-                st.session_state["df"] = None
-                st.session_state["analysis"] = None
-                st.error("Failed to process PDF. Ensure it's a valid bank statement PDF.")
-                st.caption(f"Parser note: {exc}")
+def maybe_load_processed_data() -> None:
+    """Load data if it has already been processed."""
+    # Only load data if we have it and it's not currently being processed
+    if (st.session_state.get("df") is not None and 
+        st.session_state.get("processing_state") != "streaming"):
+        
+        # Apply date range filter if dates have changed
+        start_date, end_date = get_current_date_range()
+        if start_date and end_date:
+            df = st.session_state.get("df")
+            if df is not None:
+                filtered_df = filter_dataframe_by_date_range(df, start_date, end_date)
+                st.session_state["df"] = filtered_df
+                st.session_state["analysis"] = analyze_dataframe(filtered_df)
 
 
 def main() -> None:
@@ -657,18 +726,28 @@ def main() -> None:
     config = load_config()
     logger = get_logger()
     init_session_state()
+    init_chat_components()
 
     render_header()
     render_sidebar()
 
-    # Data layer - reload data if date range has changed
-    maybe_load_demo_data()
+    # Data source selection section
+    data_source_area = st.container()
+    with data_source_area:
+        render_data_source_section()
 
+    # Data layer - load data if already processed
+    maybe_load_processed_data()
 
     # Content areas in responsive layout
     summary_area = st.container()
     with summary_area:
         render_summary_section()
+
+    # Chat section for analysis
+    chat_area = st.container()
+    with chat_area:
+        render_chat_section()
 
     viz_area = st.container()
     with viz_area:
