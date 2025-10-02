@@ -22,6 +22,19 @@ from utils.data_loader import (
 from utils.gemini_streaming import create_streaming_processor
 from components.chat_interface import ChatInterface
 
+
+def get_accessible_colors():
+    """Return a palette of accessible colors that work well together and are colorblind-friendly."""
+    return {
+        'income': 'rgba(76, 175, 80, 0.7)',      # Accessible green
+        'spending': 'rgba(244, 67, 54, 0.7)',    # Accessible red
+        'balance': 'rgba(33, 150, 243, 1)',      # Accessible blue
+        'grid': 'rgba(128, 128, 128, 0.4)',     # Semi-transparent gray
+        'primary': '#4CAF50',                    # Matches theme primary
+        'secondary': 'rgba(255, 193, 7, 0.8)',  # Accessible amber
+        'tertiary': 'rgba(156, 39, 176, 0.7)',  # Accessible purple
+    }
+
 APP_NAME: str = "Spending Analyst"
 TAGLINE: str = "Your financial companion that gets it"
 DEFAULT_CURRENCY: str = "£"
@@ -144,8 +157,7 @@ def render_sidebar() -> None:
     """Render the sidebar controls for analysis period and view options."""
     with st.sidebar:
         st.markdown("### Settings")
-        st.caption("Configure your analysis period and view options.")
-
+        
         st.markdown("**Analysis Period**")
         date_range_type = st.selectbox(
             label="Time range type",
@@ -339,6 +351,8 @@ def render_visualizations_section() -> None:
                     daily_bal["Daily_Net"] = daily_bal["Income"] - daily_bal["Spending"]
                     daily_bal["Balance"] = daily_bal["Daily_Net"].cumsum()
                 
+                colors = get_accessible_colors()
+                
                 fig = make_subplots(
                     rows=1, cols=1,
                     specs=[[{"secondary_y": True}]],
@@ -347,14 +361,14 @@ def render_visualizations_section() -> None:
                 
                 fig.add_trace(
                     go.Bar(x=daily_bal["Day"], y=daily_bal["Income"], 
-                           name="Income", marker_color="green", opacity=0.7,
+                           name="Income", marker_color=colors['income'],
                            hovertemplate="<b>%{x}</b><br>Income: £%{y:,.0f}<extra></extra>"),
                     secondary_y=False,
                 )
                 
                 fig.add_trace(
                     go.Bar(x=daily_bal["Day"], y=daily_bal["Spending"], 
-                           name="Spending", marker_color="red", opacity=0.7,
+                           name="Spending", marker_color=colors['spending'],
                            hovertemplate="<b>%{x}</b><br>Spending: £%{y:,.0f}<extra></extra>"),
                     secondary_y=False,
                 )
@@ -364,8 +378,8 @@ def render_visualizations_section() -> None:
                 fig.add_trace(
                     go.Scatter(x=daily_bal_unique["Day"], y=daily_bal_unique["Balance"], 
                               name="Account Balance", mode="lines+markers", 
-                              line=dict(color="darkblue", width=3),
-                              marker=dict(size=5, color="darkblue", symbol="circle"),
+                              line=dict(color=colors['balance'], width=3),
+                              marker=dict(size=5, color=colors['balance'], symbol="circle"),
                               hovertemplate="<b>%{x}</b><br>Balance: £%{y:,.0f}<extra></extra>"),
                     secondary_y=True,
                 )
@@ -385,8 +399,8 @@ def render_visualizations_section() -> None:
                     showlegend=True
                 )
                 
-                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
-                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="lightgray", secondary_y=False)
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor=colors['grid'])
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=colors['grid'], secondary_y=False)
                 fig.update_yaxes(showgrid=False, secondary_y=True)
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -433,8 +447,19 @@ def render_visualizations_section() -> None:
                             )
                     
                     with right_col:
+                        # Create accessible color palette for pie chart
+                        accessible_palette = [
+                            colors['primary'], colors['secondary'], colors['tertiary'],
+                            colors['income'], colors['spending'], colors['balance'],
+                            'rgba(255, 152, 0, 0.8)',  # Orange
+                            'rgba(0, 150, 136, 0.8)',  # Teal
+                            'rgba(121, 85, 72, 0.8)',  # Brown
+                            'rgba(63, 81, 181, 0.8)'   # Indigo
+                        ]
+                        
                         cat_fig = px.pie(cat_df, names="Category", values="Spend", 
-                                        title="Share of Spending by Category", hole=0.4)
+                                        title="Share of Spending by Category", hole=0.4,
+                                        color_discrete_sequence=accessible_palette)
                         cat_fig.update_traces(textposition="inside", textinfo="percent+label")
                         cat_fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
                         st.plotly_chart(cat_fig, use_container_width=True)

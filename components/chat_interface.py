@@ -102,7 +102,7 @@ class ChatInterface:
             with st.chat_message("assistant"):
                 st.markdown(message.content)
         elif message.role == "system":
-            with st.chat_message("system"):
+            with st.chat_message("system", avatar="💻"):
                 st.info(message.content)
     
     
