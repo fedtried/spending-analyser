@@ -67,7 +67,7 @@ def init_session_state() -> None:
     """Initialize Streamlit session state variables used across the app."""
     from datetime import date
     defaults = {
-        "app_state": "initial",  # "initial" or "final" - controls UI visibility
+        # app_state removed; UI is always visible with empty states
         "data_source": "Demo Data",  # Will be determined by file upload
         "analysis_period": "Custom Date Range",
         # "date_range_type": "Custom Date Range",  # Removed to avoid conflict with widget default
@@ -125,10 +125,7 @@ def render_header() -> None:
 
 def render_data_source_section() -> None:
     """Render the data source selection section with demo data showcase."""
-    # Only show in initial state
-    if st.session_state.get("app_state") != "initial":
-        return
-    
+    # Always visible with empty states
     # Main container with enhanced styling
     with st.container(border=True):
         # Header section with button on the right
@@ -152,8 +149,6 @@ def render_data_source_section() -> None:
                 st.session_state["start_demo_processing"] = True
                 st.session_state["processing_state"] = "uploading"
                 st.session_state["data_source"] = "Demo Data"
-                # Change app state to final
-                st.session_state["app_state"] = "final"
                 st.rerun()
 
 
@@ -195,14 +190,12 @@ def render_sidebar() -> None:
             if start_date and end_date and start_date > end_date:
                 st.error("Start date must be before end date")
             else:
-                # Check if dates have changed and trigger rerun
+                # Persist dates in session state; Streamlit will rerun implicitly
                 old_start = st.session_state.get("start_date")
                 old_end = st.session_state.get("end_date")
                 if (old_start != start_date or old_end != end_date):
                     st.session_state["start_date"] = start_date
                     st.session_state["end_date"] = end_date
-                    # Trigger rerun to reload data with new filter
-                    st.rerun()
         else:
             # Calculate date range for preset options
             if date_range_type == "Last 7 days":
@@ -226,42 +219,37 @@ def render_sidebar() -> None:
                 st.session_state.get("end_date") != end_date):
                 st.session_state["start_date"] = start_date
                 st.session_state["end_date"] = end_date
-                # Trigger rerun to reload data with new filter
-                st.rerun()
+                # No explicit rerun; Streamlit handles reruns on widget change
         
-        # Show reset button in final state
-        if st.session_state.get("app_state") == "final":
-            st.markdown("---")
-            st.markdown("### Reset")
-            if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
-                # Clear all data and reset state
-                st.session_state["df"] = None
-                st.session_state["analysis"] = None
-                st.session_state["ai_pdf_summary"] = None
-                st.session_state["demo_ai_processed"] = False
-                st.session_state["processing_state"] = "idle"
-                st.session_state["uploaded_file"] = None
-                st.session_state["data_source"] = "Demo Data"
-                st.session_state["start_pdf_processing"] = False
-                st.session_state["start_demo_processing"] = False
-                st.session_state["is_processing"] = False
-                st.session_state["last_filtered_start_date"] = None
-                st.session_state["last_filtered_end_date"] = None
-                # Reset app state to initial
-                st.session_state["app_state"] = "initial"
-                
-                # Clear chat messages
-                chat_interface = st.session_state.get("chat_interface")
-                if chat_interface:
-                    chat_interface.clear_messages()
-                
-                st.rerun()
+        # Always show reset button
+        st.markdown("---")
+        st.markdown("### Reset")
+        if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
+            # Clear all data and reset state
+            st.session_state["df"] = None
+            st.session_state["analysis"] = None
+            st.session_state["ai_pdf_summary"] = None
+            st.session_state["demo_ai_processed"] = False
+            st.session_state["processing_state"] = "idle"
+            st.session_state["uploaded_file"] = None
+            st.session_state["data_source"] = "Demo Data"
+            st.session_state["start_pdf_processing"] = False
+            st.session_state["start_demo_processing"] = False
+            st.session_state["is_processing"] = False
+            st.session_state["last_filtered_start_date"] = None
+            st.session_state["last_filtered_end_date"] = None
+            # Remove app_state usage
+            if "app_state" in st.session_state:
+                del st.session_state["app_state"]
+            
+            # Clear chat messages
+            chat_interface = st.session_state.get("chat_interface")
+            if chat_interface:
+                chat_interface.clear_messages()
+            
+            st.rerun()
 
-        # Show chat interface metrics if available
-        chat_interface = st.session_state.get("chat_interface")
-        if chat_interface and st.session_state.get("processing_state") in ["streaming", "complete"]:
-            st.markdown("---")
-            chat_interface.render_sidebar_metrics()
+
 
 
 def render_metrics_row(total_spent: float | None = None, total_income: float | None = None, total_net: float | None = None) -> None:
@@ -285,15 +273,14 @@ def render_metrics_row(total_spent: float | None = None, total_income: float | N
 
 def render_visualizations_section() -> None:
     """Render the visualizations placeholder section with a minimal chart."""
-    # Only show visualizations in final state
-    if st.session_state.get("app_state") != "final":
-        return
-        
+    # Always visible with empty states
     with st.container(border=True):
         st.markdown("### Visualizations 🎯")
         
         try:
-            df = st.session_state.get("df")
+            # Use raw dataframe if available; avoid boolean evaluation of DataFrame
+            df_raw = st.session_state.get("df_raw")
+            df = df_raw if df_raw is not None else st.session_state.get("df")
 
             if df is None or df.empty:
                 st.info("Visualization will appear here once data is available.")
@@ -302,17 +289,18 @@ def render_visualizations_section() -> None:
             # Overview metrics section - show when data is available
             st.markdown("#### Overview 📊")
             
-            # Show current date range
+            # Show current date range and compute filtered view + local metrics
             start_date, end_date = get_current_date_range()
             if start_date and end_date:
                 st.caption(f"Analysis period: {start_date} to {end_date}")
+                df = filter_dataframe_by_date_range(df, start_date, end_date)
 
-            analysis = st.session_state.get("analysis")
-            if analysis is not None:
+            if df is not None and not df.empty:
+                local_analysis = analyze_dataframe(df)
                 render_metrics_row(
-                    total_spent=analysis.total_spent,
-                    total_income=analysis.total_income,
-                    total_net=analysis.total_net,
+                    total_spent=local_analysis.total_spent,
+                    total_income=local_analysis.total_income,
+                    total_net=local_analysis.total_net,
                 )
             else:
                 render_metrics_row()
@@ -469,15 +457,14 @@ def render_visualizations_section() -> None:
 
 def render_chat_section() -> None:
     """Render the chat interface section for data analysis."""
-    # Only show chat in final state
-    if st.session_state.get("app_state") != "final":
-        return
-        
+    # Always visible with empty states
     chat_interface = st.session_state.get("chat_interface")
     if chat_interface and st.session_state.get("data_source") == "Demo Data":
         with st.container(border=True):
             data_source = st.session_state.get("data_source")
             st.markdown("### 💬 Financial Analysis Chat")
+            # Always render chat immediately so users see it as soon as they click
+            chat_interface.render_chat_container()
             
             # Handle processing flags - PDF PROCESSING COMMENTED OUT
             # if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
@@ -493,13 +480,6 @@ def render_chat_section() -> None:
                 st.session_state["is_processing"] = True
                 st.session_state["processing_state"] = "streaming"
                 process_demo_data_with_ai()
-            
-            # Only render chat container when not processing AND we haven't completed processing yet
-            is_processing = st.session_state.get("is_processing", False)
-            has_completed_processing = st.session_state.get("demo_ai_processed", False)
-            
-            if not is_processing and not has_completed_processing:
-                chat_interface.render_chat_container()
             
             # Show download section if processing is complete and we have data - COMMENTED OUT FOR DEMO ONLY
             # if st.session_state.get("data_source") == "Upload PDF":
@@ -644,12 +624,8 @@ def process_demo_data_with_ai() -> None:
                 chat_interface.render_chat_container()
             time.sleep(0.1)  # Small delay for smooth streaming
         
-        
-        # Apply date range filter
-        start_date, end_date = get_current_date_range()
-        if start_date and end_date:
-            df = filter_dataframe_by_date_range(df, start_date, end_date)
-        
+        # Persist unfiltered data; visualizations will filter on the fly
+        st.session_state["df_raw"] = df
         st.session_state["df"] = df
         st.session_state["analysis"] = analyze_dataframe(df)
         
@@ -701,26 +677,11 @@ def process_demo_data_with_ai() -> None:
 
 def maybe_load_processed_data() -> None:
     """Load data if it has already been processed."""
-    # Only load data if we have it and it's not currently being processed
+    # If data exists and we're not processing, keep global df unchanged.
+    # Visualizations will apply date filtering locally so Gemini/analysis aren't retriggered.
     if (st.session_state.get("df") is not None and 
         st.session_state.get("processing_state") not in ["streaming", "uploading"]):
-        
-        # Check if we need to re-apply date filtering
-        start_date, end_date = get_current_date_range()
-        if start_date and end_date:
-            df = st.session_state.get("df")
-            if df is not None:
-                # Only re-filter if the date range has actually changed
-                current_start = st.session_state.get("last_filtered_start_date")
-                current_end = st.session_state.get("last_filtered_end_date")
-                
-                if (current_start != start_date or current_end != end_date):
-                    filtered_df = filter_dataframe_by_date_range(df, start_date, end_date)
-                    st.session_state["df"] = filtered_df
-                    st.session_state["analysis"] = analyze_dataframe(filtered_df)
-                    # Remember the dates we filtered with
-                    st.session_state["last_filtered_start_date"] = start_date
-                    st.session_state["last_filtered_end_date"] = end_date
+        return
 
 
 def main() -> None:

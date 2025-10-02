@@ -168,27 +168,8 @@ class ChatInterface:
         return st.session_state.parsing_metrics.copy()
     
     def render_sidebar_metrics(self) -> None:
-        """Render parsing metrics in the sidebar."""
-        with st.sidebar:
-            st.markdown("### Processing Status")
-            
-            state = self.get_processing_state()
-            if state == "idle":
-                st.info("Ready to process PDF")
-            elif state == "uploading":
-                st.info("📤 Uploading PDF...")
-            elif state == "streaming":
-                st.info("🔄 Analyzing document...")
-            elif state == "complete":
-                st.success("✅ Analysis complete!")
-            
-            # Show parsing metrics
-            metrics = self.get_parsing_metrics()
-            if any(metrics.values()):
-                st.markdown("**Progress**")
-                st.metric("Pages Processed", metrics.get("pages_processed", 0))
-                st.metric("Transactions Found", metrics.get("transactions_found", 0))
-                st.metric("Categories Identified", metrics.get("categories_identified", 0))
+        """Render parsing metrics in the sidebar. (Intentionally left blank)"""
+        return
     
     def render_download_section(self) -> None:
         """Render CSV download section when processing is complete."""
