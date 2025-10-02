@@ -67,6 +67,7 @@ def init_session_state() -> None:
     """Initialize Streamlit session state variables used across the app."""
     from datetime import date
     defaults = {
+        "app_state": "initial",  # "initial" or "final" - controls UI visibility
         "data_source": "Demo Data",  # Will be determined by file upload
         "analysis_period": "Custom Date Range",
         "date_range_type": "Custom Date Range",  # "Last 7 days", "Last 30 days", etc. or "Custom Date Range"
@@ -124,79 +125,58 @@ def render_header() -> None:
 
 def render_data_source_section() -> None:
     """Render the data source selection section with upload and GO button."""
+    # Only show in initial state
+    if st.session_state.get("app_state") != "initial":
+        return
+        
     with st.container(border=True):
         st.markdown("### 📊 Choose Your Data Source")
-        st.caption("Use demo data to explore the features, or upload your own bank statement for personalized analysis.")
+        st.caption("Use demo data to explore the features and see how the AI analysis works.")
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # File uploader
-            uploaded_file = st.file_uploader(
-                "Upload PDF bank statement",
-                type=["pdf"],
-                accept_multiple_files=False,
-                help="Upload your bank statement PDF for AI-powered analysis. Leave empty to use demo data.",
-                key="main_uploader"
-            )
+            # File uploader - COMMENTED OUT FOR DEMO ONLY
+            # uploaded_file = st.file_uploader(
+            #     "Upload PDF bank statement",
+            #     type=["pdf"],
+            #     accept_multiple_files=False,
+            #     help="Upload your bank statement PDF for AI-powered analysis. Leave empty to use demo data.",
+            #     key="main_uploader"
+            # )
             
             # Store uploaded file in session state
-            st.session_state["uploaded_file"] = uploaded_file
+            # st.session_state["uploaded_file"] = uploaded_file
             
             # Determine data source based on upload
-            if uploaded_file is not None:
-                st.session_state["data_source"] = "Upload PDF"
-                st.success(f"📎 Ready to analyze: {uploaded_file.name}")
-            else:
-                st.session_state["data_source"] = "Demo Data"
-                st.info("📊 Will use demo data for analysis")
+            # if uploaded_file is not None:
+            #     st.session_state["data_source"] = "Upload PDF"
+            #     st.success(f"📎 Ready to analyze: {uploaded_file.name}")
+            # else:
+            #     st.session_state["data_source"] = "Demo Data"
+            #     st.info("📊 Will use demo data for analysis")
+            
+            # FORCE DEMO DATA ONLY
+            st.session_state["data_source"] = "Demo Data"
+            st.info("📊 Using demo data for analysis")
         
         with col2:
             st.markdown("**Ready to analyze?**")
             
             # GO button
             if st.button("🚀 GO", type="primary", use_container_width=True, help="Start the AI analysis"):
-                if st.session_state.get("data_source") == "Upload PDF" and uploaded_file is not None:
-                    # Set flag to start PDF processing
-                    st.session_state["start_pdf_processing"] = True
-                    st.session_state["processing_state"] = "uploading"
-                elif st.session_state.get("data_source") == "Demo Data":
+                # Only demo data processing available
+                if st.session_state.get("data_source") == "Demo Data":
                     # Set flag to start demo processing
                     st.session_state["start_demo_processing"] = True
                     st.session_state["processing_state"] = "uploading"
+                    # Change app state to final
+                    st.session_state["app_state"] = "final"
                 else:
-                    st.error("Please upload a PDF file or select demo data")
-            
-            # Reset button (only show if we have processed data)
-            if (st.session_state.get("df") is not None or 
-                st.session_state.get("processing_state") == "complete"):
-                if st.button("🔄 Reset", use_container_width=True, help="Clear analysis and start fresh"):
-                    # Clear all data and reset state
-                    st.session_state["df"] = None
-                    st.session_state["analysis"] = None
-                    st.session_state["ai_pdf_summary"] = None
-                    st.session_state["demo_ai_processed"] = False
-                    st.session_state["processing_state"] = "idle"
-                    st.session_state["uploaded_file"] = None
-                    st.session_state["data_source"] = "Demo Data"
-                    st.session_state["start_pdf_processing"] = False
-                    st.session_state["start_demo_processing"] = False
-                    st.session_state["is_processing"] = False
-                    st.session_state["last_filtered_start_date"] = None
-                    st.session_state["last_filtered_end_date"] = None
-                    
-                    # Clear chat messages
-                    chat_interface = st.session_state.get("chat_interface")
-                    if chat_interface:
-                        chat_interface.clear_messages()
-                    
-                    st.rerun()
+                    st.error("Demo data processing only")
             
             # Show current status
-            if st.session_state.get("data_source") == "Upload PDF":
-                st.caption("✅ PDF ready for analysis")
-            else:
-                st.caption("✅ Demo data ready for analysis")
+            st.caption("✅ Demo data ready for analysis")
         
         # Processing metrics are shown in the sidebar
 
@@ -275,6 +255,34 @@ def render_sidebar() -> None:
                 # Trigger rerun to reload data with new filter
                 st.rerun()
         
+        # Show reset button in final state
+        if st.session_state.get("app_state") == "final":
+            st.markdown("---")
+            st.markdown("### Reset")
+            if st.button("🔄 Start Over", use_container_width=True, help="Clear analysis and start fresh"):
+                # Clear all data and reset state
+                st.session_state["df"] = None
+                st.session_state["analysis"] = None
+                st.session_state["ai_pdf_summary"] = None
+                st.session_state["demo_ai_processed"] = False
+                st.session_state["processing_state"] = "idle"
+                st.session_state["uploaded_file"] = None
+                st.session_state["data_source"] = "Demo Data"
+                st.session_state["start_pdf_processing"] = False
+                st.session_state["start_demo_processing"] = False
+                st.session_state["is_processing"] = False
+                st.session_state["last_filtered_start_date"] = None
+                st.session_state["last_filtered_end_date"] = None
+                # Reset app state to initial
+                st.session_state["app_state"] = "initial"
+                
+                # Clear chat messages
+                chat_interface = st.session_state.get("chat_interface")
+                if chat_interface:
+                    chat_interface.clear_messages()
+                
+                st.rerun()
+
         # Show chat interface metrics if available
         chat_interface = st.session_state.get("chat_interface")
         if chat_interface and st.session_state.get("processing_state") in ["streaming", "complete"]:
@@ -303,6 +311,10 @@ def render_metrics_row(total_spent: float | None = None, total_income: float | N
 
 def render_visualizations_section() -> None:
     """Render the visualizations placeholder section with a minimal chart."""
+    # Only show visualizations in final state
+    if st.session_state.get("app_state") != "final":
+        return
+        
     with st.container(border=True):
         st.markdown("### Visualizations 🎯")
         
@@ -484,20 +496,24 @@ def render_visualizations_section() -> None:
 
 def render_chat_section() -> None:
     """Render the chat interface section for data analysis."""
+    # Only show chat in final state
+    if st.session_state.get("app_state") != "final":
+        return
+        
     chat_interface = st.session_state.get("chat_interface")
-    if chat_interface and st.session_state.get("data_source") in ["Demo Data", "Upload PDF"]:
+    if chat_interface and st.session_state.get("data_source") == "Demo Data":
         with st.container(border=True):
             data_source = st.session_state.get("data_source")
             st.markdown("### 💬 Financial Analysis Chat")
             
-            # Handle processing flags
-            if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
-                st.session_state["start_pdf_processing"] = False
-                uploaded_file = st.session_state.get("uploaded_file")
-                if uploaded_file is not None:
-                    st.session_state["is_processing"] = True
-                    st.session_state["processing_state"] = "streaming"
-                    process_pdf_with_streaming(uploaded_file)
+            # Handle processing flags - PDF PROCESSING COMMENTED OUT
+            # if st.session_state.get("start_pdf_processing") and not st.session_state.get("is_processing"):
+            #     st.session_state["start_pdf_processing"] = False
+            #     uploaded_file = st.session_state.get("uploaded_file")
+            #     if uploaded_file is not None:
+            #         st.session_state["is_processing"] = True
+            #         st.session_state["processing_state"] = "streaming"
+            #         process_pdf_with_streaming(uploaded_file)
             
             if st.session_state.get("start_demo_processing") and not st.session_state.get("is_processing"):
                 st.session_state["start_demo_processing"] = False
@@ -515,9 +531,9 @@ def render_chat_section() -> None:
             else:
                 print(f"🔍 [DEBUG] Skipping main section render (processing: {is_processing}, completed: {has_completed_processing})")
             
-            # Show download section if processing is complete and we have data
-            if st.session_state.get("data_source") == "Upload PDF":
-                chat_interface.render_download_section()
+            # Show download section if processing is complete and we have data - COMMENTED OUT FOR DEMO ONLY
+            # if st.session_state.get("data_source") == "Upload PDF":
+            #     chat_interface.render_download_section()
 
 
 def render_footer() -> None:
@@ -559,68 +575,69 @@ def get_current_date_range():
         return st.session_state.get("start_date"), st.session_state.get("end_date")
 
 
-def process_pdf_with_streaming(pdf_file) -> None:
-    """Process PDF with streaming chat interface."""
-    # Check if we're already processing or have processed this file
-    if st.session_state.get("is_processing", False):
-        return
-    
-    chat_interface = st.session_state.get("chat_interface")
-    streaming_processor = st.session_state.get("streaming_processor")
-    
-    if not chat_interface or not streaming_processor:
-        st.error("Chat interface not properly initialized")
-        return
-    
-    # Start PDF processing
-    chat_interface.start_pdf_processing(pdf_file)
-    
-    # Create a placeholder for streaming content
-    message_placeholder = st.empty()
-    
-    # Process PDF with streaming
-    try:
-        full_response = ""
-        print(f"🔍 [DEBUG] Starting PDF streaming processing...")
-        for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
-            full_response += chunk
-            print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
-            # Add chunk to chat interface for real-time display
-            chat_interface.update_assistant_message(chunk, append=True)
-            # Update the message in real-time using placeholder
-            print(f"🔍 [DEBUG] Rendering chat container in PDF streaming placeholder")
-            with message_placeholder.container():
-                chat_interface.render_chat_container()
-            time.sleep(0.1)  # Small delay for smooth streaming
-        
-        print(f"🔍 [DEBUG] Streaming complete. Full response length: {len(full_response)}")
-        print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
-        
-        # Complete processing
-        extracted_data = chat_interface.get_extracted_data()
-        if extracted_data is not None:
-            # Convert to our internal format
-            df = convert_gemini_csv_to_internal_format(extracted_data)
-            
-            # Apply date range filter
-            start_date, end_date = get_current_date_range()
-            if start_date and end_date:
-                df = filter_dataframe_by_date_range(df, start_date, end_date)
-            
-            st.session_state["df"] = df
-            st.session_state["analysis"] = analyze_dataframe(df)
-            
-            # Set AI summary
-            st.session_state["ai_pdf_summary"] = full_response
-        
-        chat_interface.complete_processing(extracted_data)
-        
-    except Exception as e:
-        st.error(f"Streaming processing failed: {str(e)}")
-        chat_interface.add_message("system", f"❌ Processing failed: {str(e)}")
-    finally:
-        # Always clear processing guard at end
-        st.session_state["is_processing"] = False
+# PDF PROCESSING FUNCTION COMMENTED OUT FOR DEMO ONLY
+# def process_pdf_with_streaming(pdf_file) -> None:
+#     """Process PDF with streaming chat interface."""
+#     # Check if we're already processing or have processed this file
+#     if st.session_state.get("is_processing", False):
+#         return
+#     
+#     chat_interface = st.session_state.get("chat_interface")
+#     streaming_processor = st.session_state.get("streaming_processor")
+#     
+#     if not chat_interface or not streaming_processor:
+#         st.error("Chat interface not properly initialized")
+#         return
+#     
+#     # Start PDF processing
+#     chat_interface.start_pdf_processing(pdf_file)
+#     
+#     # Create a placeholder for streaming content
+#     message_placeholder = st.empty()
+#     
+#     # Process PDF with streaming
+#     try:
+#         full_response = ""
+#         print(f"🔍 [DEBUG] Starting PDF streaming processing...")
+#         for chunk in streaming_processor.process_pdf_streaming(pdf_file, chat_interface):
+#             full_response += chunk
+#             print(f"🔍 [DEBUG] Received chunk: {chunk[:50]}...")
+#             # Add chunk to chat interface for real-time display
+#             chat_interface.update_assistant_message(chunk, append=True)
+#             # Update the message in real-time using placeholder
+#             print(f"🔍 [DEBUG] Rendering chat container in PDF streaming placeholder")
+#             with message_placeholder.container():
+#                 chat_interface.render_chat_container()
+#             time.sleep(0.1)  # Small delay for smooth streaming
+#         
+#         print(f"🔍 [DEBUG] Streaming complete. Full response length: {len(full_response)}")
+#         print(f"🔍 [DEBUG] Final response preview: {full_response[:200]}...")
+#         
+#         # Complete processing
+#         extracted_data = chat_interface.get_extracted_data()
+#         if extracted_data is not None:
+#             # Convert to our internal format
+#             df = convert_gemini_csv_to_internal_format(extracted_data)
+#             
+#             # Apply date range filter
+#             start_date, end_date = get_current_date_range()
+#             if start_date and end_date:
+#                 df = filter_dataframe_by_date_range(df, start_date, end_date)
+#             
+#             st.session_state["df"] = df
+#             st.session_state["analysis"] = analyze_dataframe(df)
+#             
+#             # Set AI summary
+#             st.session_state["ai_pdf_summary"] = full_response
+#         
+#         chat_interface.complete_processing(extracted_data)
+#         
+#     except Exception as e:
+#         st.error(f"Streaming processing failed: {str(e)}")
+#         chat_interface.add_message("system", f"❌ Processing failed: {str(e)}")
+#     finally:
+#         # Always clear processing guard at end
+#         st.session_state["is_processing"] = False
 
 
 def process_demo_data_with_ai() -> None:
@@ -689,33 +706,34 @@ def process_demo_data_with_ai() -> None:
         st.session_state["is_processing"] = False
 
 
-def convert_gemini_csv_to_internal_format(gemini_df) -> pd.DataFrame:
-    """Convert Gemini CSV output to internal DataFrame format."""
-    df = gemini_df.copy()
-    
-    # Rename columns to internal format
-    df = df.rename(columns={
-        "Transaction_Date": "timestamp",
-        "Amount": "amount", 
-        "Merchant_Category": "category",
-        "Balance_After": "balance_after",
-        "Description": "description",
-    })
-    
-    # Convert timestamp and ensure numeric types
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-    df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
-    
-    # Add required columns
-    df["currency"] = DEFAULT_CURRENCY
-    df["merchant"] = df["description"].astype(str)
-    df["category"] = df["category"].astype(str)
-    
-    # Clean up and validate
-    df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
-    
-    return df
+# PDF CONVERSION FUNCTION COMMENTED OUT FOR DEMO ONLY
+# def convert_gemini_csv_to_internal_format(gemini_df) -> pd.DataFrame:
+#     """Convert Gemini CSV output to internal DataFrame format."""
+#     df = gemini_df.copy()
+#     
+#     # Rename columns to internal format
+#     df = df.rename(columns={
+#         "Transaction_Date": "timestamp",
+#         "Amount": "amount", 
+#         "Merchant_Category": "category",
+#         "Balance_After": "balance_after",
+#         "Description": "description",
+#     })
+#     
+#     # Convert timestamp and ensure numeric types
+#     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+#     df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+#     df["balance_after"] = pd.to_numeric(df["balance_after"], errors="coerce")
+#     
+#     # Add required columns
+#     df["currency"] = DEFAULT_CURRENCY
+#     df["merchant"] = df["description"].astype(str)
+#     df["category"] = df["category"].astype(str)
+#     
+#     # Clean up and validate
+#     df = df.dropna(subset=["timestamp", "amount"]).reset_index(drop=True)
+#     
+#     return df
 
 
 def maybe_load_processed_data() -> None:
